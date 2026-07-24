@@ -1,0 +1,1406 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>收藏品 (Collection Book) - Notion & Apple 風格收藏管理系統</title>
+  <link rel="stylesheet" href="./style.css?v=3.0.1">
+  <script src="./data.js?v=3.0.1" defer></script>
+  <script src="./storage.js?v=3.0.1" defer></script>
+  <script src="./app.js?v=3.0.1" defer></script>
+</head>
+<body>
+
+  <!-- 全域新增收藏按鈕 -->
+  <button id="desktop-add-btn" class="desktop-add-btn" aria-label="新增收藏">
+    <span>＋ 新增收藏</span>
+  </button>
+
+  <button id="mobile-fab-btn" class="mobile-fab" aria-label="新增收藏">
+    <span>＋</span>
+  </button>
+
+  <!-- 行動端導覽列 (僅在行動裝置上顯示，用於觸發 Sidebar) -->
+  <header class="mobile-navbar" id="mobile-header">
+    <button id="mobile-sidebar-toggle" class="mobile-toggle-btn" aria-label="切換選單">
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="4" x2="20" y1="12" y2="12"/>
+        <line x1="4" x2="20" y1="6" y2="6"/>
+        <line x1="4" x2="20" y1="18" y2="18"/>
+      </svg>
+    </button>
+    <div class="mobile-logo">收藏品</div>
+  </header>
+
+  <!-- 整體版面配置容器 -->
+  <div class="app-layout">
+    
+    <!-- 左側固定 Sidebar (Mobile 可收合) -->
+    <aside class="sidebar" id="app-sidebar">
+      <!-- 遮罩層 (Mobile 展開選單時點擊背景關閉) -->
+      <div class="sidebar-overlay" id="sidebar-overlay"></div>
+      
+      <div class="sidebar-wrapper">
+        <div class="sidebar-header">
+          <span class="sidebar-logo">🧸 收藏品</span>
+          <span class="sidebar-subtitle">Archive Book</span>
+        </div>
+
+        <nav class="sidebar-menu">
+          <!-- 核心分區 -->
+          <a href="#" class="menu-item active" id="menu-home" data-view="dashboard">
+            <span class="menu-icon">🏠</span> 首頁
+          </a>
+          
+          <div class="menu-divider"></div>
+          
+          <!-- 分類：娃娃 -->
+          <a href="#" class="menu-item menu-section-title" id="menu-dolls" data-view="series" data-series="category-娃娃">🧸 娃娃</a>
+          <div id="sidebar-series-dolls" class="sidebar-series-group"></div>
+
+          <div class="menu-divider"></div>
+
+          <!-- 分類：周邊 -->
+          <a href="#" class="menu-item menu-section-title" id="menu-merch" data-view="series" data-series="category-周邊">🎁 周邊</a>
+          <div id="sidebar-series-merch" class="sidebar-series-group"></div>
+
+          <div class="menu-divider"></div>
+
+          <!-- 分類：旅遊 -->
+          <a href="#" class="menu-item menu-section-title" id="menu-travel" data-view="series" data-series="category-旅遊" style="display: flex; justify-content: space-between; align-items: center; width: 100%; padding-right: 12px;">
+            <span>✈️ 旅遊</span>
+          </a>
+          <div id="sidebar-series-travel" class="sidebar-series-group"></div>
+
+          <div class="menu-divider"></div>
+
+          <!-- 系統設定 -->
+          <div class="menu-section-title">⚙️ 系統設定</div>
+          <a href="#" class="menu-item" id="menu-settings" data-view="settings">
+            <span class="menu-icon">⚙️</span> 設定
+          </a>
+        </nav>
+      </div>
+    </aside>
+
+    <!-- 右側主要內容區 -->
+    <main class="main-container">
+      
+      <!-- ================= 視圖一：首頁看板 (Dashboard) ================= -->
+      <div id="view-dashboard" class="content-view active">
+        <!-- 頂部標題區 -->
+        <section class="page-hero">
+          <h1 class="page-title">個人收藏書頁</h1>
+          <p class="page-subtitle">歡迎回到您的收藏庫。在這裡記錄每一個帶給您溫暖與喜悅的物件。</p>
+        </section>
+
+        <!-- 數據統計卡片 (Notion 簡約風格) -->
+        <section class="stats-container">
+          <div class="stat-card" id="stat-total">
+            <div class="stat-icon">📦</div>
+            <div class="stat-info">
+              <span class="stat-label">收藏總數 (已收藏)</span>
+              <span class="stat-value"><span id="stat-val-total">13</span> <span class="stat-unit">件</span></span>
+            </div>
+          </div>
+          <div class="stat-card" id="stat-amount" style="height: auto; min-height: 100px; flex-direction: column; align-items: flex-start; justify-content: center; cursor: pointer; position: relative;">
+            <div style="display: flex; align-items: center; gap: 16px; width: 100%;">
+              <div class="stat-icon">💰</div>
+              <div class="stat-info" style="flex: 1; min-width: 0;">
+                <span class="stat-label" style="display: flex; align-items: center; justify-content: space-between; width: 100%; flex-wrap: wrap; gap: 4px;">
+                  <span>收藏總金額 (已收藏)</span>
+                  <span id="amount-expand-arrow" style="font-size: 11px; color: var(--text-muted); font-weight: normal;">▼ 展開預算明細</span>
+                </span>
+                <span class="stat-value" id="stat-val-amount">NT$ 8,640</span>
+              </div>
+            </div>
+            <!-- 收合的明細 -->
+            <div id="stat-amount-details" style="display: none; width: 100%; border-top: 1px dashed var(--border-light); margin-top: 12px; padding-top: 8px; font-size: var(--fs-xs); color: var(--text-muted); flex-direction: column; gap: 4px;">
+              <!-- 動態渲染其他狀態的金額 -->
+            </div>
+          </div>
+          <div class="stat-card" id="stat-monthly">
+            <div class="stat-icon">🆕</div>
+            <div class="stat-info">
+              <span class="stat-label">本月新增 (已收藏)</span>
+              <span class="stat-value"><span id="stat-val-monthly">4</span> <span class="stat-unit">件</span></span>
+            </div>
+          </div>
+         <!-- 收藏分析 -->
+</section>
+
+<!-- 收藏分析 -->
+<section class="section-group" id="collection-analysis-section">
+  <div class="dashboard-analysis-card">
+    <h2 class="analysis-title">📊 收藏分析</h2>
+
+    <div class="dashboard-analysis-grid">
+      <div>
+        <h3 class="analysis-subtitle">🏆 收藏系列</h3>
+        <div id="analysis-series-list">暫無資料</div>
+      </div>
+
+      <div>
+        <h3 class="analysis-subtitle">✈️ 去過</h3>
+        <div id="analysis-country-list">暫無資料</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+        <!-- 狀態統計看板 (Notion & Apple Style) -->
+        <section class="section-group" id="status-stats-section" style="margin-bottom: 48px;">
+          <h2 class="section-heading">收藏狀態統計</h2>
+          <div class="status-stats-grid">
+            <div class="stat-card status-stat-card" style="height: 80px; padding: 12px 16px;">
+              <div class="stat-icon" style="background-color: rgba(52, 199, 89, 0.1); color: #34c759; width: 40px; height: 40px; font-size: 1.5rem;">🟢</div>
+              <div class="stat-info">
+                <span class="stat-label">✔ 已收藏</span>
+                <span class="stat-value" style="font-size: var(--fs-md);"><span id="status-val-collected">0</span> <span class="stat-unit">件</span></span>
+              </div>
+            </div>
+            <div class="stat-card status-stat-card" style="height: 80px; padding: 12px 16px;">
+              <div class="stat-icon" style="background-color: rgba(142, 142, 147, 0.1); color: #8e8e93; width: 40px; height: 40px; font-size: 1.5rem;">⚪</div>
+              <div class="stat-info">
+                <span class="stat-label">⭕ 未收藏</span>
+                <span class="stat-value" style="font-size: var(--fs-md);"><span id="status-val-uncollected">0</span> <span class="stat-unit">件</span></span>
+              </div>
+            </div>
+            <div class="stat-card status-stat-card" style="height: 80px; padding: 12px 16px;">
+              <div class="stat-icon" style="background-color: rgba(0, 113, 227, 0.1); color: #0071e3; width: 40px; height: 40px; font-size: 1.5rem;">🔵</div>
+              <div class="stat-info">
+                <span class="stat-label">🔵 預購中</span>
+                <span class="stat-value" style="font-size: var(--fs-md);"><span id="status-val-preorder">0</span> <span class="stat-unit">件</span></span>
+              </div>
+            </div>
+            <div class="stat-card status-stat-card" style="height: 80px; padding: 12px 16px;">
+              <div class="stat-icon" style="background-color: rgba(255, 204, 0, 0.1); color: #ffcc00; width: 40px; height: 40px; font-size: 1.5rem;">🟡</div>
+              <div class="stat-info">
+                <span class="stat-label">🟡 已下單</span>
+                <span class="stat-value" style="font-size: var(--fs-md);"><span id="status-val-ordered">0</span> <span class="stat-unit">件</span></span>
+              </div>
+            </div>
+            <div class="stat-card status-stat-card" style="height: 80px; padding: 12px 16px;">
+              <div class="stat-icon" style="background-color: rgba(255, 59, 48, 0.1); color: #ff3b30; width: 40px; height: 40px; font-size: 1.5rem;">🔴</div>
+              <div class="stat-info">
+                <span class="stat-label">🔴 已取消</span>
+                <span class="stat-value" style="font-size: var(--fs-md);"><span id="status-val-cancelled">0</span> <span class="stat-unit">件</span></span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 首頁分類卡片 -->
+        <section class="section-group">
+          <h2 class="section-heading">分類總覽</h2>
+          <div class="category-cards-grid">
+            
+            <!-- 分類：娃娃 -->
+            <div class="home-category-card" data-category="dolls" data-view="series" data-series="category-娃娃">
+              <div class="category-card-media" style="background: linear-gradient(135deg, #fff5e6 0%, #ffe0b2 100%);">
+                <span class="category-media-emoji">🧸</span>
+              </div>
+              <div class="category-card-content">
+                <h3 class="category-card-title">娃娃</h3>
+                <p class="category-card-count" id="home-cat-count-娃娃">目前收藏：5 件</p>
+                <p class="category-card-amount" id="home-cat-amount-娃娃">總收藏金額：NT$ 2,020</p>
+              </div>
+            </div>
+
+            <!-- 分類：周邊 -->
+            <div class="home-category-card" data-category="merch" data-view="series" data-series="category-周邊">
+              <div class="category-card-media" style="background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);">
+                <span class="category-media-emoji">🎁</span>
+              </div>
+              <div class="category-card-content">
+                <h3 class="category-card-title">周邊</h3>
+                <p class="category-card-count" id="home-cat-count-周邊">目前收藏：2 件</p>
+                <p class="category-card-amount" id="home-cat-amount-周邊">總收藏金額：NT$ 2,750</p>
+              </div>
+            </div>
+
+            <!-- 分類：旅遊 -->
+            <div class="home-category-card" data-category="travel" data-view="series" data-series="category-旅遊">
+              <div class="category-card-media" style="background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);">
+                <span class="category-media-emoji">✈️</span>
+              </div>
+              <div class="category-card-content">
+                <h3 class="category-card-title">旅遊</h3>
+                <p class="category-card-count" id="home-cat-count-旅遊">目前收藏：6 件</p>
+                <p class="category-card-amount" id="home-cat-amount-旅遊">總收藏金額：NT$ 3,870</p>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+        <!-- 快速導覽說明 -->
+        <section class="quick-guide-section">
+          <div class="guide-banner">
+            <h3>💡 提示</h3>
+            <p>點擊左側選單的系列（如 <strong>🐤 雞</strong> 或 <strong>⚡ SJ</strong>）可以切換至專屬的系列頁，查看該系列所有可愛的收藏品，並能點擊卡片開啟右側詳情抽屜。</p>
+          </div>
+        </section>
+      </div>
+
+      <!-- ================= 視圖二：系列內頁 (Series Detail) ================= -->
+      <div id="view-series" class="content-view">
+        <!-- 系列內頁標頭 -->
+        <section class="series-header-section">
+          <div class="series-title-group" style="width: 100%;">
+            <span class="series-emoji-icon" id="dynamic-series-emoji">🐤</span>
+            <div style="flex: 1; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+              <div>
+                <h1 class="series-title" id="dynamic-series-title">雞</h1>
+                <p class="series-meta-text">
+                  目前收藏：<span id="dynamic-series-count" style="font-weight: 600;">26</span> 件
+                  <span class="series-meta-divider">|</span> 
+                  總收藏金額：<span id="dynamic-series-amount" style="font-weight: 600;">NT$ 0</span>
+                </p>
+              </div>
+              <div id="series-manage-actions" style="display: none; gap: 8px;">
+                <button id="btn-rename-series" class="manage-series-btn">
+                  <span>🖊️ 重新命名</span>
+                </button>
+                <button id="btn-delete-series" class="manage-series-btn danger">
+                  <span>🗑️ 刪除系列</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 搜尋與過濾篩選列 (即時同步) -->
+          <div class="filter-bar" style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; width: 100%;">
+            <!-- 第一行：搜尋與排序與清除篩選 -->
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; width: 100%;">
+              <div class="search-sort-group" style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap; flex-grow: 1; max-width: 500px;">
+                <!-- 搜尋框 -->
+                <div class="search-input-wrapper" style="position: relative; display: flex; align-items: center; max-width: 280px; width: 100%;">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="search-icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="position: absolute; left: 12px; color: var(--text-muted); pointer-events: none;">
+                    <circle cx="11" cy="11" r="8"/>
+                    <path d="m21 21-4.3-4.3"/>
+                  </svg>
+                  <input type="text" class="series-search-input" id="series-search-input" placeholder="在此系列中搜尋...">
+                </div>
+
+                <!-- 排序下拉選單 -->
+                <div class="sort-select-container">
+                  <select id="series-sort-select" class="filter-action-btn" style="width: auto; min-width: 155px; padding-right: 28px;">
+                    <option value="latest_added">✨ 最新新增</option>
+                    <option value="oldest_added">📅 最舊新增</option>
+                    <option value="name_asc">🔤 名稱 A → Z</option>
+                    <option value="name_desc">🔤 名稱 Z → A</option>
+                    <option value="date_desc">📅 購入日期（新 → 舊）</option>
+                    <option value="date_asc">📅 購入日期（舊 → 新）</option>
+                    <option value="price_desc">💰 收藏價格（高 → 低）</option>
+                    <option value="price_asc">💰 收藏價格（低 → 高）</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- 右側：清除篩選按鈕 -->
+              <div class="clear-filters-container">
+                <button type="button" id="btn-clear-filters" class="filter-action-btn" style="width: auto; min-width: 110px; border-color: var(--border-light); background-color: transparent; color: var(--text-muted); font-weight: 500;">
+                  🧹 清除篩選
+                </button>
+              </div>
+            </div>
+
+            <!-- 第二行：多條件篩選下拉選單組 -->
+            <div id="multi-filter-container" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; width: 100%;">
+              <!-- 1. 狀態篩選 -->
+              <select id="filter-status-select" class="filter-action-btn" style="width: auto; min-width: 135px;">
+                <option value="all">🟢 狀態: 全部</option>
+                <option value="collected">🟢 已收藏</option>
+                <option value="uncollected">🟡 未收藏</option>
+                <option value="preorder">🔵 預購中</option>
+                <option value="ordered">🌐 已下單</option>
+                <option value="cancelled">⚪ 已取消</option>
+              </select>
+
+              <!-- 2. 分類篩選 -->
+              <select id="filter-category-select" class="filter-action-btn" style="width: auto; min-width: 135px;">
+                <option value="all">📦 分類: 全部</option>
+                <option value="娃娃">🧸 娃娃</option>
+                <option value="周邊">✨ 周邊</option>
+                <option value="旅遊">✈️ 旅遊</option>
+              </select>
+
+              <!-- 3. 付款方式篩選 -->
+              <select id="filter-payment-method-select" class="filter-action-btn" style="width: auto; min-width: 155px;">
+                <option value="all">💳 付款: 全部</option>
+                <option value="現金">💵 現金</option>
+                <option value="信用卡">💳 信用卡</option>
+                <option value="金融卡">🏦 金融卡</option>
+                <option value="Samsung Wallet">📱 Samsung Wallet</option>
+                <option value="Google Wallet">📱 Google Wallet</option>
+                <option value="LINE Pay">🟢 LINE Pay</option>
+                <option value="街口支付">🔴 街口支付</option>
+                <option value="悠遊付">🔵 悠遊付</option>
+                <option value="全支付">🎨 全支付</option>
+                <option value="其他">⚙️ 其他</option>
+              </select>
+
+              <!-- 4. 幣別篩選 -->
+              <select id="filter-currency-select" class="filter-action-btn" style="width: auto; min-width: 120px;">
+                <option value="all">🪙 幣別: 全部</option>
+                <option value="TWD">TWD</option>
+                <option value="JPY">JPY</option>
+                <option value="KRW">KRW</option>
+                <option value="HKD">HKD</option>
+                <option value="USD">USD</option>
+                <option value="EUR">EUR</option>
+              </select>
+
+              <!-- 5. 標籤篩選 -->
+              <select id="filter-tag-select" class="filter-action-btn" style="width: auto; min-width: 135px;">
+                <option value="all">🏷️ 標籤: 全部</option>
+              </select>
+
+              <!-- 6. 來源篩選 -->
+              <select id="filter-source-select" class="filter-action-btn" style="width: auto; min-width: 135px;">
+                <option value="all">🛒 來源: 全部</option>
+              </select>
+
+              <!-- 7. 周邊成員篩選 -->
+              <select
+                id="filter-member-select"
+                class="filter-action-btn"
+                style="display: none; width: auto; min-width: 135px;"
+              >
+                <option value="all">👤 成員: 全部</option>
+              </select>
+
+              <!-- 旅遊專屬篩選容器 (國家、城市、旅程) -->
+              <div id="travel-filters-group" style="display: none; gap: 10px; align-items: center; flex-wrap: wrap;">
+                <!-- 國家篩選 -->
+                <select id="filter-country-select" class="filter-action-btn" style="width: auto; min-width: 135px;">
+                  <option value="all">🗺️ 國家: 全部</option>
+                </select>
+
+                <!-- 城市篩選 -->
+                <select id="filter-city-select" class="filter-action-btn" style="width: auto; min-width: 135px;">
+                  <option value="all">🏙️ 城市: 全部</option>
+                </select>
+
+                <!-- 旅程篩選 -->
+                <select id="filter-trip-select" class="filter-action-btn" style="width: auto; min-width: 135px;">
+                  <option value="all">📅 旅程: 全部</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 收藏卡片網格 (Apple Card 風格) -->
+        <section class="collection-cards-grid" id="dynamic-cards-container">
+          <!-- 這裡將使用 JavaScript 根據所選系列動態渲染卡片 (詳見 app.js 預留內容) -->
+        </section>
+      </div>
+
+      <!-- ================= 視圖五：旅程首頁 (Trip Detail) ================= -->
+      <div id="view-trip" class="content-view">
+        <!-- 旅程內頁標頭 -->
+        <section class="series-header-section" id="trip-header-section" style="position: relative;">
+          <!-- 封面照片 Banner -->
+          <div id="trip-cover-banner" class="trip-cover-banner" style="width: 100%; height: 200px; border-radius: var(--radius-md); overflow: hidden; margin-bottom: 24px; background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%); display: none; align-items: center; justify-content: center; border: 1px solid var(--border-light); box-shadow: var(--shadow-sm);">
+            <img id="trip-cover-img" src="" alt="旅程封面" style="width: 100%; height: 100%; object-fit: cover; display: none;">
+          </div>
+          
+          <div class="series-title-group" style="width: 100%;">
+            <span class="series-emoji-icon" id="trip-emoji-icon">🗺️</span>
+            <div style="flex: 1; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+              <div>
+                <h1 class="series-title" id="trip-detail-name">東京自由行</h1>
+                <div class="trip-meta-info" style="font-size: var(--fs-xs); color: var(--text-muted); margin-top: 8px; display: flex; flex-direction: column; gap: 6px;">
+                  <p>📅 日期：<span id="trip-detail-date" style="font-weight: 500; color: var(--text-main);">---</span></p>
+                  <p>🗺️ 國家：<span id="trip-detail-country" style="font-weight: 500; color: var(--text-main);">---</span></p>
+                  <p>🏙️ 城市：<span id="trip-detail-cities" style="font-weight: 500; color: var(--text-main);">---</span></p>
+                  <p id="trip-accommodation-row">🏨 住宿：<span id="trip-detail-accommodation" style="font-weight: 500; color: var(--text-main);">---</span></p>
+                  <p id="trip-companions-row">👥 同行人：<span id="trip-detail-companions" style="font-weight: 500; color: var(--text-main);">---</span></p>
+                  <p id="trip-note-row">📝 備註：<span id="trip-detail-note" style="font-weight: 500; color: var(--text-main);">---</span></p>
+                </div>
+                <!-- 旅程統計數據 -->
+                <div class="trip-stats-strip" style="margin-top: 14px; display: flex; gap: 12px; flex-wrap: wrap;">
+                  <div class="trip-stat-badge" style="background: var(--bg-sidebar); border: 1px solid var(--border-light); padding: 4px 10px; border-radius: 12px; font-size: 11px;">
+                    📦 收藏：<span id="trip-stat-items-count" style="font-weight: 600;">0</span> 件
+                  </div>
+                  <div class="trip-stat-badge" style="background: var(--bg-sidebar); border: 1px solid var(--border-light); padding: 4px 10px; border-radius: 12px; font-size: 11px;">
+                    🖼️ 圖片：<span id="trip-stat-images-count" style="font-weight: 600;">0</span> 張
+                  </div>
+                  <div class="trip-stat-badge" id="trip-stat-amount-container" style="background: var(--bg-sidebar); border: 1px solid var(--border-light); padding: 4px 10px; border-radius: 12px; font-size: 11px; display: flex;  gap: 2px;">
+                    <span>💰 各幣別花費：</span>
+                    <span id="trip-stat-total-amount" style="font-weight: 600;">NT$ 0</span>
+                  </div>
+                </div>
+                <!-- 旅程狀態統計數據 -->
+                <div class="trip-status-stats-strip" style="margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 6px;">
+                  <span class="trip-status-stat-badge collected" style="background: rgba(52, 199, 89, 0.1); color: #34c759; border: 1px solid rgba(52, 199, 89, 0.2); padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 500;">
+                    ✔ 已收藏: <b id="trip-status-val-collected" style="font-weight: 700;">0</b>
+                  </span>
+                  <span class="trip-status-stat-badge uncollected" style="background: rgba(142, 142, 147, 0.1); color: #8e8e93; border: 1px solid rgba(142, 142, 147, 0.2); padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 500;">
+                    ⭕ 未收藏: <b id="trip-status-val-uncollected" style="font-weight: 700;">0</b>
+                  </span>
+                  <span class="trip-status-stat-badge preorder" style="background: rgba(0, 113, 227, 0.1); color: #0071e3; border: 1px solid rgba(0, 113, 227, 0.2); padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 500;">
+                    🔵 預購中: <b id="trip-status-val-preorder" style="font-weight: 700;">0</b>
+                  </span>
+                  <span class="trip-status-stat-badge ordered" style="background: rgba(255, 204, 0, 0.1); color: #b8860b; border: 1px solid rgba(255, 204, 0, 0.2); padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 500;">
+                    🟡 已下單: <b id="trip-status-val-ordered" style="font-weight: 700;">0</b>
+                  </span>
+                  <span class="trip-status-stat-badge cancelled" style="background: rgba(255, 59, 48, 0.1); color: #ff3b30; border: 1px solid rgba(255, 59, 48, 0.2); padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 500;">
+                    🔴 已取消: <b id="trip-status-val-cancelled" style="font-weight: 700;">0</b>
+                  </span>
+                </div>
+              </div>
+              <div id="trip-manage-actions" style="display: flex; gap: 8px;">
+                <button id="btn-edit-trip" class="manage-series-btn">
+                  <span>🖊️ 編輯旅程</span>
+                </button>
+                <button id="btn-delete-trip" class="manage-series-btn danger">
+                  <span>🗑️ 刪除旅程</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 搜尋與過濾篩選列 -->
+          <div class="filter-bar" style="display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 24px; margin-top: 24px;">
+            <!-- 左側：搜尋框與排序下拉選單 -->
+            <div class="search-sort-group" style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap; flex-grow: 1; max-width: 500px;">
+              <!-- 搜尋框 -->
+              <div class="search-input-wrapper" style="position: relative; display: flex; align-items: center; max-width: 280px; width: 100%;">
+                <svg xmlns="http://www.w3.org/2000/svg" class="search-icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="position: absolute; left: 12px; color: var(--text-muted); pointer-events: none;">
+                  <circle cx="11" cy="11" r="8"/>
+                  <path d="m21 21-4.3-4.3"/>
+                </svg>
+                <input type="text" class="series-search-input" id="trip-search-input" placeholder="在此旅程中搜尋收藏...">
+              </div>
+
+              <!-- 排序下拉選單 -->
+              <div class="sort-select-container">
+                <select id="trip-sort-select" class="filter-action-btn" style="width: auto; min-width: 155px; padding-right: 28px;">
+                  <option value="latest_added">✨ 最新新增</option>
+                  <option value="oldest_added">📅 最舊新增</option>
+                  <option value="name_asc">🔤 名稱 A → Z</option>
+                  <option value="name_desc">🔤 名稱 Z → A</option>
+                  <option value="date_desc">📅 購入日期（新 → 舊）</option>
+                  <option value="date_asc">📅 購入日期（舊 → 新）</option>
+                  <option value="price_desc">💰 收藏價格（高 → 低）</option>
+                  <option value="price_asc">💰 收藏價格（低 → 高）</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="filter-actions-group" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+              <div class="filter-dropdown-container" style="position: relative;">
+                <button id="btn-trip-filter-trigger" class="filter-action-btn">
+                  <span>🔍 篩選狀態</span>
+                  <span id="trip-filter-badge-count" style="display: none; background-color: var(--accent); color: white; border-radius: 50%; width: 16px; height: 16px; font-size: 9px; align-items: center; justify-content: center; font-weight: bold; line-height: 1;">0</span>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                </button>
+                
+                <div id="trip-filter-popover" class="popover-card" style="display: none; position: absolute; top: calc(100% + 6px); right: 0; z-index: 100; min-width: 180px; background-color: var(--bg-card); border: 1px solid var(--border-light); border-radius: var(--radius-md); box-shadow: var(--shadow-lg); padding: 12px; flex-direction: column; gap: 8px;">
+                  <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); margin-bottom: 4px; padding-bottom: 4px; border-bottom: 1px solid var(--border-light);">篩選收藏狀態 (可多選)</div>
+                  
+                  <label class="popover-checkbox-label" style="display: flex; align-items: center; gap: 8px; font-size: var(--fs-xs); color: var(--text-main); cursor: pointer; padding: 4px 0;">
+                    <input type="checkbox" class="trip-status-filter-checkbox" value="collected" checked style="cursor: pointer; accent-color: var(--accent);">
+                    <span>🟢 已收藏</span>
+                  </label>
+                  <label class="popover-checkbox-label" style="display: flex; align-items: center; gap: 8px; font-size: var(--fs-xs); color: var(--text-main); cursor: pointer; padding: 4px 0;">
+                    <input type="checkbox" class="trip-status-filter-checkbox" value="uncollected" checked style="cursor: pointer; accent-color: var(--accent);">
+                    <span>🟡 未收藏</span>
+                  </label>
+                  <label class="popover-checkbox-label" style="display: flex; align-items: center; gap: 8px; font-size: var(--fs-xs); color: var(--text-main); cursor: pointer; padding: 4px 0;">
+                    <input type="checkbox" class="trip-status-filter-checkbox" value="preorder" checked style="cursor: pointer; accent-color: var(--accent);">
+                    <span>🔵 預購中</span>
+                  </label>
+                  <label class="popover-checkbox-label" style="display: flex; align-items: center; gap: 8px; font-size: var(--fs-xs); color: var(--text-main); cursor: pointer; padding: 4px 0;">
+                    <input type="checkbox" class="trip-status-filter-checkbox" value="ordered" checked style="cursor: pointer; accent-color: var(--accent);">
+                    <span>🌐 已下單</span>
+                  </label>
+                  <label class="popover-checkbox-label" style="display: flex; align-items: center; gap: 8px; font-size: var(--fs-xs); color: var(--text-main); cursor: pointer; padding: 4px 0;">
+                    <input type="checkbox" class="trip-status-filter-checkbox" value="cancelled" checked style="cursor: pointer; accent-color: var(--accent);">
+                    <span>⚪ 已取消</span>
+                  </label>
+                  
+                  <div style="display: flex; justify-content: space-between; gap: 6px; margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border-light);">
+                    <button type="button" id="btn-trip-filter-reset" style="font-size: 10px; color: var(--text-muted); cursor: pointer; padding: 4px; background: none; border: none;">重設全部</button>
+                    <button type="button" id="btn-trip-filter-apply" style="font-size: 10px; color: var(--accent); font-weight: 600; cursor: pointer; padding: 4px; background: none; border: none;">確定</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 收藏卡片網格 (Apple Card 風格) -->
+        <section class="collection-cards-grid" id="trip-cards-container">
+          <!-- 動態渲染旅程底下的收藏 -->
+        </section>
+      </div>
+
+      <!-- ================= 視圖三：通用佔位頁 (Placeholder) ================= -->
+      <div id="view-placeholder" class="content-view">
+        <section class="placeholder-section">
+          <div class="placeholder-icon">🛠️</div>
+          <h1 class="placeholder-title" id="placeholder-page-title">功能建設中</h1>
+          <p class="placeholder-subtitle">本頁面目前為 UI 預留，尚未連結實際資料。</p>
+          <button class="back-to-home-btn" id="btn-back-home">返回首頁</button>
+        </section>
+      </div>
+
+      <!-- ================= 視圖四：系統設定頁 (Settings) ================= -->
+      <div id="view-settings" class="content-view">
+        <section class="page-hero">
+          <h1 class="page-title">⚙️ 系統設定</h1>
+          <p class="page-subtitle">在此管理您的系列、標籤、來源、幣別與資料備份。所有資料皆安全地儲存在您的瀏覽器中。</p>
+        </section>
+
+        <section class="section-group">
+          <div class="settings-grid">
+            <!-- 1. 系列管理 -->
+            <div class="settings-card">
+              <div class="settings-card-header">
+                <span class="settings-card-icon">📁</span>
+                <div class="settings-card-header-text">
+                  <h3>系列管理</h3>
+                  <p>管理您的娃娃、周邊與旅遊等收藏系列。</p>
+                </div>
+              </div>
+              <div class="settings-card-body-custom">
+                <!-- 新增/修改系列小表單 -->
+                <div class="settings-mini-form">
+                  <input type="hidden" id="setting-series-id" value="">
+                  <div class="mini-form-row">
+                    <select id="setting-series-category" class="form-select mini-select">
+                      <option value="娃娃">🧸 娃娃</option>
+                      <option value="周邊">🎁 周邊</option>
+                      <option value="旅遊">✈️ 旅遊</option>
+                    </select>
+                    <input type="text" id="setting-series-name" class="form-input mini-input" placeholder="系列名稱，例如：兔子">
+                    <input type="text" id="setting-series-emoji" class="form-input mini-input-emoji" placeholder="Emoji" maxlength="2" value="📦">
+                    <button id="btn-setting-save-series" class="settings-btn primary mini-btn">儲存</button>
+                    <button id="btn-setting-cancel-series" class="settings-btn secondary mini-btn" style="display: none;">取消</button>
+                  </div>
+                </div>
+                <!-- 系列滾動列表 -->
+                <div class="settings-list" id="setting-series-list">
+                  <!-- 動態填入 -->
+                </div>
+              </div>
+            </div>
+
+            <!-- 周邊團體與成員管理 -->
+            <div class="settings-card" id="settings-card-groups">
+              <div class="settings-card-header">
+                <span class="settings-card-icon">👤</span>
+                <div class="settings-card-header-text">
+                  <h3>周邊團體與成員</h3>
+                  <p>先在「系列管理」建立周邊團體，再於此新增或刪除成員。新增收藏時可選擇單一成員、全員，或留空。</p>
+                </div>
+              </div>
+              <div class="settings-card-body-custom">
+                <div class="settings-mini-form">
+                  <div class="mini-form-row wrap" style="flex-wrap: wrap; gap: 8px;">
+                    <select id="setting-group-select" class="form-select mini-select" style="flex: 1; min-width: 130px;"></select>
+                    <input type="text" id="setting-member-name" class="form-input mini-input" placeholder="成員名稱，例如：東海" style="flex: 2; min-width: 140px;">
+                    <button id="btn-setting-add-member" class="settings-btn primary mini-btn">新增成員</button>
+                  </div>
+                </div>
+                <div class="settings-list" id="setting-members-list"></div>
+              </div>
+            </div>
+
+            <!-- 國家管理 (旅遊模組) -->
+            <div class="settings-card" id="settings-card-countries">
+              <div class="settings-card-header">
+                <span class="settings-card-icon">🗺️</span>
+                <div class="settings-card-header-text">
+                  <h3>國家管理</h3>
+                  <p>管理您的旅遊目的地國家（修改後會即時同步至側邊欄，若已有旅程則禁止刪除）。</p>
+                </div>
+              </div>
+              <div class="settings-card-body-custom">
+                <!-- 新增/修改國家小表單 -->
+                <div class="settings-mini-form">
+                  <input type="hidden" id="setting-country-id" value="">
+                  <div class="mini-form-row">
+                    <input
+                      type="text"
+                      id="setting-country-emoji"
+                      class="form-input mini-input-emoji"
+                      placeholder="🇯🇵"
+                      value="🗺️"
+                      style="width: 60px; text-align: center;"
+                    >
+                    <input type="text" id="setting-country-name" class="form-input mini-input" placeholder="國家名稱，例如：日本" style="flex-grow: 1;">
+                    <button id="btn-setting-save-country" class="settings-btn primary mini-btn">儲存</button>
+                    <button id="btn-setting-cancel-country" class="settings-btn secondary mini-btn" style="display: none;">取消</button>
+                  </div>
+                </div>
+                <!-- 國家滾動列表 -->
+                <div class="settings-list" id="setting-countries-list">
+                  <!-- 動態填入 -->
+                </div>
+              </div>
+            </div>
+
+            <!-- 旅程管理 (旅遊模組) -->
+            <div class="settings-card" id="settings-card-trips">
+              <div class="settings-card-header">
+                <span class="settings-card-icon">✈️</span>
+                <div class="settings-card-header-text">
+                  <h3>旅程管理</h3>
+                  <p>管理您的旅遊行程（修改後會即時同步，並同步側邊欄列表）。</p>
+                </div>
+              </div>
+              <div class="settings-card-body-custom">
+                <!-- 新增旅程按鈕 -->
+                <div style="margin-bottom: 12px; display: flex; justify-content: flex-end;">
+                  <button id="btn-setting-add-trip" class="settings-btn primary mini-btn" style="width: 100%; justify-content: center; height: 36px; font-size: var(--fs-xs);">＋ 新增旅程</button>
+                </div>
+                <!-- 旅程滾動列表 -->
+                <div class="settings-list" id="setting-trips-list">
+                  <!-- 動態填入 -->
+                </div>
+              </div>
+            </div>
+
+            <!-- 2. 標籤管理 -->
+            <div class="settings-card">
+              <div class="settings-card-header">
+                <span class="settings-card-icon">🏷️</span>
+                <div class="settings-card-header-text">
+                  <h3>標籤管理</h3>
+                  <p>全域標籤管理，修改後將同步更新所有已使用此標籤的收藏品。</p>
+                </div>
+              </div>
+              <div class="settings-card-body-custom">
+                <!-- 新增/修改標籤小表單 -->
+                <div class="settings-mini-form">
+                  <input type="hidden" id="setting-tag-old-name" value="">
+                  <div class="mini-form-row">
+                    <input type="text" id="setting-tag-name" class="form-input mini-input" placeholder="標籤名稱，例如：#金屬徽章">
+                    <button id="btn-setting-save-tag" class="settings-btn primary mini-btn">儲存</button>
+                    <button id="btn-setting-cancel-tag" class="settings-btn secondary mini-btn" style="display: none;">取消</button>
+                  </div>
+                </div>
+                <!-- 標籤滾動列表 -->
+                <div class="settings-list" id="setting-tags-list">
+                  <!-- 動態填入 -->
+                </div>
+              </div>
+            </div>
+
+            <!-- 3. 來源管理 -->
+            <div class="settings-card">
+              <div class="settings-card-header">
+                <span class="settings-card-icon">🏪</span>
+                <div class="settings-card-header-text">
+                  <h3>來源管道管理</h3>
+                  <p>建立並管理您購得收藏品的管道，新增收藏時下拉選單會同步更新。</p>
+                </div>
+              </div>
+              <div class="settings-card-body-custom">
+                <!-- 新增/修改來源小表單 -->
+                <div class="settings-mini-form">
+                  <input type="hidden" id="setting-source-old-name" value="">
+                  <div class="mini-form-row">
+                    <input type="text" id="setting-source-name" class="form-input mini-input" placeholder="來源名稱，例如：蝦皮拍賣">
+                    <button id="btn-setting-save-source" class="settings-btn primary mini-btn">儲存</button>
+                    <button id="btn-setting-cancel-source" class="settings-btn secondary mini-btn" style="display: none;">取消</button>
+                  </div>
+                </div>
+                <!-- 來源滾動列表 -->
+                <div class="settings-list" id="setting-sources-list">
+                  <!-- 動態填入 -->
+                </div>
+              </div>
+            </div>
+
+            <!-- 4. 幣別管理 -->
+            <div class="settings-card">
+              <div class="settings-card-header">
+                <span class="settings-card-icon">💵</span>
+                <div class="settings-card-header-text">
+                  <h3>幣別管理</h3>
+                  <p>新增、修改與停用收藏計價幣別。<b>不可停用已被使用的幣別。</b></p>
+                </div>
+              </div>
+              <div class="settings-card-body-custom">
+                <!-- 新增/修改幣別小表單 -->
+                <div class="settings-mini-form">
+                  <input type="hidden" id="setting-currency-is-edit" value="false">
+                  <div class="mini-form-row wrap" style="flex-wrap: wrap; gap: 8px;">
+                    <input type="text" id="setting-currency-code" class="form-input" placeholder="代碼 (AUD)" maxlength="5" style="flex: 1; min-width: 60px;">
+                    <input type="text" id="setting-currency-symbol" class="form-input" placeholder="符號 ($)" maxlength="5" style="flex: 1; min-width: 50px;">
+                    <input type="text" id="setting-currency-name" class="form-input" placeholder="名稱 (澳幣)" style="flex: 2; min-width: 100px;">
+                    <button id="btn-setting-save-currency" class="settings-btn primary mini-btn">儲存</button>
+                    <button id="btn-setting-cancel-currency" class="settings-btn secondary mini-btn" style="display: none;">取消</button>
+                  </div>
+                </div>
+                <!-- 幣別滾動列表 -->
+                <div class="settings-list" id="setting-currencies-list">
+                  <!-- 動態填入 -->
+                </div>
+              </div>
+            </div>
+
+            <!-- 付款方式管理 -->
+            <div class="settings-card">
+              <div class="settings-card-header">
+                <span class="settings-card-icon">💳</span>
+                <div class="settings-card-header-text">
+                  <h3>付款方式管理</h3>
+                  <p>建立並管理您常用的付款方式。</p>
+                </div>
+              </div>
+              <div class="settings-card-body-custom">
+                <!-- 新增/修改付款方式小表單 -->
+                <div class="settings-mini-form">
+                  <input type="hidden" id="setting-payment-method-old-name" value="">
+                  <div class="mini-form-row" style="display: flex; gap: 8px;">
+                    <input type="text" id="setting-payment-method-name" class="form-input mini-input" placeholder="例如：Apple Pay" style="flex-grow: 1;">
+                    <button id="btn-setting-save-payment-method" class="settings-btn primary mini-btn">儲存</button>
+                    <button id="btn-setting-cancel-payment-method" class="settings-btn secondary mini-btn" style="display: none;">取消</button>
+                  </div>
+                </div>
+                <!-- 付款方式滾動列表 -->
+                <div class="settings-list" id="setting-payment-payment-methods-list">
+                  <!-- 動態填入 -->
+                </div>
+              </div>
+            </div>
+
+            <!-- 付款工具管理 -->
+            <div class="settings-card">
+              <div class="settings-card-header">
+                <span class="settings-card-icon">🏦</span>
+                <div class="settings-card-header-text">
+                  <h3>付款工具管理</h3>
+                  <p>管理您的信用卡、金融卡、支付聯名卡等，新增收藏時可選擇對應的付款工具。</p>
+                </div>
+              </div>
+              <div class="settings-card-body-custom">
+                <!-- 新增/修改付款工具小表單 -->
+                <div class="settings-mini-form">
+                  <input type="hidden" id="setting-payment-tool-old-name" value="">
+                  <div class="mini-form-row" style="display: flex; gap: 8px;">
+                    <input type="text" id="setting-payment-tool-name" class="form-input mini-input" placeholder="例如：國泰 Cube" style="flex-grow: 1;">
+                    <button id="btn-setting-save-payment-tool" class="settings-btn primary mini-btn">儲存</button>
+                    <button id="btn-setting-cancel-payment-tool" class="settings-btn secondary mini-btn" style="display: none;">取消</button>
+                  </div>
+                </div>
+                <!-- 付款工具滾動列表 -->
+                <div class="settings-list" id="setting-payment-payment-tools-list">
+                  <!-- 動態填入 -->
+                </div>
+              </div>
+            </div>
+
+            <!-- 5. 資料備份與還原 -->
+            <div class="settings-card">
+              <div class="settings-card-header">
+                <span class="settings-card-icon">💾</span>
+                <div class="settings-card-header-text">
+                  <h3>資料備份與還原</h3>
+                  <p>匯出您的收藏紀錄以供備份，或匯入還原之前的備份檔。</p>
+                </div>
+              </div>
+              <div class="settings-card-body-custom">
+                <div class="backup-action-group">
+                  <div class="backup-row">
+                    <div class="backup-label-col">
+                      <h4>匯出備份 (JSON)</h4>
+                      <p>匯出當前所有的收藏紀錄與自訂設定。</p>
+                    </div>
+                    <button id="btn-export-json" class="settings-btn primary">
+                      <span>📤 匯出備份 JSON</span>
+                    </button>
+                  </div>
+                  <hr class="backup-divider" style="border: 0; border-top: 1px solid var(--border-color); margin: 12px 0;">
+                  <div class="backup-row">
+                    <div class="backup-label-col">
+                      <h4>資料還原</h4>
+                      <p>選擇先前的 <code>collection.json</code> 備份檔進行覆蓋還原。</p>
+                    </div>
+                    <div class="import-controls">
+                      <div class="import-file-wrapper">
+                        <label for="import-json-file" class="import-file-label">
+                          <span>📁 選擇 JSON 檔案</span>
+                        </label>
+                        <input type="file" id="import-json-file" accept=".json" style="display: none;">
+                        <span id="import-file-name" class="import-file-name">尚未選擇檔案</span>
+                      </div>
+                      <button id="btn-import-json" class="settings-btn secondary" disabled style="margin-top: 8px;">
+                        <span>確認匯入還原</span>
+                      </button>
+                    </div>
+                  </div>
+                  <hr class="backup-divider" style="border: 0; border-top: 1px solid var(--border-color); margin: 12px 0;">
+                  <div class="backup-row danger">
+                    <div class="backup-label-col">
+                      <h4>出廠重設</h4>
+                      <p class="text-danger">清除所有自訂資料，重新載入最初始的預設假資料。</p>
+                    </div>
+                    <button id="btn-reset-data" class="settings-btn danger">
+                      <span>⚠️ 刪除並重設</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 6. 關於我們 -->
+            <div class="settings-card info-card">
+              <div class="settings-card-header">
+                <span class="settings-card-icon">🍎</span>
+                <div class="settings-card-header-text">
+                  <h3>關於 Collection Book</h3>
+                  <p>極簡精緻，專注美好事物。</p>
+                </div>
+              </div>
+              <div class="settings-card-body-custom about-body">
+                <div class="about-item">
+                  <span class="about-label">應用程式名稱：</span>
+                  <span class="about-val">Collection Book 收藏品</span>
+                </div>
+                <div class="about-item">
+                  <span class="about-label">版本資訊：</span>
+                  <span class="about-val highlight">Version 1.0.0 (V1)</span>
+                </div>
+                <div class="about-item">
+                  <span class="about-label">資料儲存體：</span>
+                  <span class="about-val">HTML5 LocalStorage (瀏覽器離線儲存)</span>
+                </div>
+                <div class="about-item description" style="margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border-color); font-size: var(--fs-xs); color: var(--text-muted); line-height: 1.6;">
+                  <p>這是一本為您的美好日常而設計的收藏筆記。採用 Apple + Notion 複合美學風格，提供流暢的圖片瀏覽、靈活的分組標籤、以及多幣別的整合。所有資料皆保留於您的手持裝置，不經任何外部雲端轉傳，完全保有隱私權與速度。</p>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </section>
+      </div>
+
+      <!-- 頁尾 -->
+      <footer class="footer">
+        <div class="footer-content">
+          <span class="footer-brand">收藏品 Collection Book</span>
+          <span class="footer-copyright">© 2026 Collection Book. 收藏每一份喜歡，記錄每一次旅程。</span>
+        </div>
+      </footer>
+    </main>
+
+    <!-- ================= 核心互動：右側側拉詳情抽屜 (Right Drawer) ================= -->
+    <div class="detail-drawer" id="item-detail-drawer">
+      <!-- 抽屜頂部工具列 -->
+      <div class="drawer-header">
+        <button id="close-drawer-btn" class="drawer-close-btn" aria-label="關閉抽屜">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" x2="6" y1="6" y2="18"/>
+            <line x1="6" x2="18" y1="6" y2="18"/>
+          </svg>
+        </button>
+        <span class="drawer-header-title">藏品詳細資料</span>
+      </div>
+ 
+      <!-- 抽屜內容區 -->
+      <div class="drawer-content">
+        <!-- 圖片輪播區域 -->
+        <div class="carousel-container">
+          <!-- 封面標記與設定按鈕 -->
+          <div id="drawer-cover-indicator" class="carousel-cover-indicator" style="display: none;">⭐ 封面</div>
+          <button id="btn-set-drawer-cover" class="carousel-set-cover-btn" style="display: none;">設為封面</button>
+
+          <button id="drawer-prev-img" class="carousel-arrow prev" aria-label="上一張">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m15 18-6-6 6-6"/>
+            </svg>
+          </button>
+          <div class="carousel-slides">
+            <div class="carousel-slide active" id="drawer-media-placeholder">
+              <!-- 動態背景與大 Emoji 或是自訂圖片 -->
+              <span class="carousel-emoji">✨</span>
+            </div>
+          </div>
+          <button id="drawer-next-img" class="carousel-arrow next" aria-label="下一張">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m9 18 6-6 6 6"/>
+            </svg>
+          </button>
+          <!-- 輪播控制點點 -->
+          <div class="carousel-dots" id="drawer-carousel-dots">
+            <span class="dot active"></span>
+          </div>
+        </div>
+ 
+        <!-- 藏品詳細屬性列表 (Notion 屬性風格) -->
+        <div class="drawer-properties" style="margin-top: 16px;">
+          <!-- 名稱 -->
+          <div class="property-row">
+            <div class="property-label">🏷️ 名稱</div>
+            <div class="property-value" id="drawer-name" style="font-size: var(--fs-base); font-weight: 800;">藏品名稱</div>
+          </div>
+          <!-- 分類 -->
+          <div class="property-row">
+            <div class="property-label">📁 分類</div>
+            <div class="property-value" id="drawer-category">娃娃</div>
+          </div>
+          <!-- 系列/國家 -->
+          <div class="property-row">
+            <div class="property-label" id="drawer-series-label">🏷️ 系列</div>
+            <div class="property-value" id="drawer-series">雞</div>
+          </div>
+
+          <!-- 周邊成員 -->
+          <div class="property-row" id="drawer-member-row" style="display: none;">
+            <div class="property-label">👤 成員</div>
+            <div class="property-value" id="drawer-member">全員</div>
+          </div>
+
+          <!-- 收藏狀態 -->
+          <div class="property-row">
+            <div class="property-label">📌 狀態</div>
+            <div class="property-value">
+              <span class="drawer-status-badge collected" id="drawer-status" style="margin-bottom: 0;">已收藏</span>
+            </div>
+          </div>
+          <!-- 購入日期/旅遊日期 -->
+          <div class="property-row">
+            <div class="property-label" id="drawer-date-label">📅 購入日期</div>
+            <div class="property-value" id="drawer-date">2026-05-12</div>
+          </div>
+
+          <!-- 當地價格 -->
+          <div class="property-row" id="drawer-local-price-row" style="display: none;">
+            <div class="property-label">💰 收藏價格</div>
+            <div class="property-value" id="drawer-local-price">5500 JPY</div>
+          </div>
+          <!-- 刷卡實際扣款 -->
+          <div class="property-row" id="drawer-card-charge-row" style="display: none;">
+            <div class="property-label">💳 實際付款</div>
+            <div class="property-value" id="drawer-card-charge">1235 TWD</div>
+          </div>
+          <!-- 付款方式 -->
+          <div class="property-row" id="drawer-payment-method-row" style="display: none;">
+            <div class="property-label">👛 付款方式</div>
+            <div class="property-value" id="drawer-payment-method">信用卡</div>
+          </div>
+          <!-- 付款工具 -->
+          <div class="property-row" id="drawer-payment-tool-row" style="display: none;">
+            <div class="property-label">💳 付款工具</div>
+            <div class="property-value" id="drawer-payment-tool">國泰 Cube</div>
+          </div>
+          <!-- 購入商店 -->
+          <div class="property-row" id="drawer-purchase-shop-row" style="display: none;">
+            <div class="property-label">🏪 購入商店</div>
+            <div class="property-value" id="drawer-purchase-shop">Olive Young</div>
+          </div>
+          <!-- 購入地點 -->
+          <div class="property-row" id="drawer-purchase-place-row" style="display: none;">
+            <div class="property-label">📍 購入地點</div>
+            <div class="property-value" id="drawer-purchase-place">日本 東京 澀谷</div>
+          </div>
+          <!-- 來源 -->
+          <div class="property-row" id="drawer-source-row">
+            <div class="property-label" id="drawer-source-label">🏪 來源管道</div>
+            <div class="property-value" id="drawer-source">台北地下街</div>
+          </div>
+          <!-- 標籤 -->
+          <div class="property-row" id="drawer-tags-row">
+            <div class="property-label">🏷️ 標籤</div>
+            <div class="property-value" id="drawer-tags">
+              <span class="drawer-tag">#限量</span>
+            </div>
+          </div>
+        </div>
+ 
+        <div class="drawer-divider"></div>
+ 
+        <!-- 備註說明區 -->
+        <div class="drawer-notes-section">
+          <h4 class="notes-heading">📝 備註與說明</h4>
+          <p class="notes-text" id="drawer-notes">
+            這是在台北地下街逛街時意外發現的限定款式，粉嫩的配色真的非常討喜！
+          </p>
+        </div>
+
+        <div class="drawer-divider"></div>
+
+        <!-- 編輯與刪除操作按鈕區 (高度 >= 44px 適合手指觸控) -->
+        <div class="drawer-action-row">
+          <button id="btn-edit-item" class="drawer-btn edit-btn">
+            <span>🖊️ 編輯此收藏</span>
+          </button>
+          <button id="btn-delete-item" class="drawer-btn delete-btn">
+            <span>🗑️ 刪除</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= 核心互動：右側側拉表單抽屜 (Form Drawer) ================= -->
+    <div class="detail-drawer form-drawer" id="item-form-drawer">
+      <!-- 抽屜頂部工具列 -->
+      <div class="drawer-header">
+        <button id="close-form-btn" class="drawer-close-btn" aria-label="關閉表單">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" x2="6" y1="6" y2="18"/>
+            <line x1="6" x2="18" y1="6" y2="18"/>
+          </svg>
+        </button>
+        <span class="drawer-header-title" id="form-drawer-title">新增收藏品</span>
+      </div>
+
+      <!-- 抽屜內容區 (表單) -->
+      <div class="drawer-content">
+        <form id="collection-form" class="collection-form" onsubmit="return false;">
+          <!-- 隱藏的 ID 欄位 (用於編輯時判定) -->
+          <input type="hidden" id="form-item-id" value="">
+
+          <!-- 大分類選擇 (核心) -->
+          <div class="form-group">
+            <label class="form-label" for="form-category">📁 收藏大分類</label>
+            <select id="form-category" class="form-select" required>
+              <option value="娃娃">🧸 娃娃</option>
+              <option value="周邊">🎁 周邊</option>
+              <option value="旅遊">✈️ 旅遊</option>
+            </select>
+          </div>
+
+          <!-- 藏品名稱 -->
+          <div class="form-group">
+            <label class="form-label" for="form-name">🏷️ 藏品/紀念品名稱 <span style="color: var(--text-danger);">*</span></label>
+            <input type="text" id="form-name" class="form-input" placeholder="例如：經典呆萌小雞 或 雷門守護御守" required>
+          </div>
+
+          <!-- ================= 狀態 A：一般收藏欄位 (娃娃、周邊等) ================= -->
+          <div id="form-normal-fields">
+            <!-- 子系列選擇 -->
+            <div class="form-group">
+              <label class="form-label" for="form-series">🏷️ 所屬系列</label>
+              <select id="form-series" class="form-select">
+                <!-- 娃娃 -->
+                <optgroup label="🧸 娃娃">
+                  <option value="雞" selected>雞</option>
+                  <option value="鴨">鴨</option>
+                  <option value="YUKIO">YUKIO</option>
+                </optgroup>
+                <!-- 周邊 -->
+                <optgroup label="🎁 周邊">
+                  <option value="SJ">SJ</option>
+                  <option value="EXO">EXO</option>
+                </optgroup>
+              </select>
+            </div>
+
+            <!-- 購入日期 -->
+            <div class="form-group">
+              <label class="form-label" for="form-date">📅 購入日期</label>
+              <input type="date" id="form-date" class="form-input">
+            </div>
+           
+<!-- 👤 周邊成員 -->
+<div class="form-group" id="form-member-group" style="display:none;">
+    <label class="form-label">
+        👤 成員（可複選）
+    </label>
+
+    <div class="member-toolbar">
+        <button type="button" id="btn-member-all" class="btn-member-tool">
+            全員
+        </button>
+
+        <button type="button" id="btn-member-clear" class="btn-member-tool">
+            清除
+        </button>
+    </div>
+
+    <div id="form-member-list" class="member-checkbox-list"></div>
+</div>
+            <!-- 收藏狀態 / 來源管道 -->
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="form-status">📌 收藏狀態</label>
+                <select id="form-status" class="form-select">
+                  <option value="collected" selected>已收藏</option>
+                  <option value="uncollected">未收藏</option>
+                  <option value="preorder">預購中</option>
+                  <option value="ordered">已下單</option>
+                  <option value="cancelled">已取消</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="form-source">🏪 來源管道</label>
+                <select id="form-source" class="form-select">
+                  <!-- Will be filled dynamically -->
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- ================= 狀態 B：旅遊特別欄位 (當分類選旅遊時顯示) ================= -->
+          <div id="form-travel-fields" style="display: none;">
+            <!-- 所屬旅程 -->
+            <div class="form-group">
+              <label class="form-label" for="form-travel-trip">✈️ 所屬旅程 <span style="color: var(--text-danger);">*</span></label>
+              <select id="form-travel-trip" class="form-select">
+                <!-- 動態載入所有的旅程 -->
+              </select>
+            </div>
+
+            <!-- 購入地點 -->
+            <div class="form-group">
+              <label class="form-label" for="form-travel-location">📍 購入地點 <span style="color: var(--text-danger);">*</span></label>
+              <input type="text" id="form-travel-location" class="form-input" placeholder="例如：東京迪士尼樂園">
+            </div>
+
+            <!-- 商店名稱 -->
+            <div class="form-group">
+              <label class="form-label" for="form-travel-shop">🏪 商店名稱 (選填)</label>
+              <input type="text" id="form-travel-shop" class="form-input" placeholder="例如：樂園大飯店商店">
+            </div>
+
+            <!-- 城市 -->
+            <div class="form-group">
+              <label class="form-label" for="form-travel-city-val">🏙️ 城市 (選填)</label>
+              <input type="text" id="form-travel-city-val" class="form-input" placeholder="例如：東京">
+            </div>
+
+            <!-- 購入日期 -->
+            <div class="form-group">
+              <label class="form-label" for="form-travel-item-date">📅 購入日期 <span style="color: var(--text-danger);">*</span></label>
+              <input type="date" id="form-travel-item-date" class="form-input">
+            </div>
+
+            <!-- 收藏狀態 -->
+            <div class="form-group">
+              <label class="form-label" for="form-travel-item-status">📌 收藏狀態</label>
+              <select id="form-travel-item-status" class="form-select">
+                <option value="collected" selected>已收藏</option>
+                <option value="uncollected">未收藏</option>
+                <option value="preorder">預購中</option>
+                <option value="ordered">已下單</option>
+                <option value="cancelled">已取消</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- ================= 共同 B：付款與購買詳情欄位 (新升級) ================= -->
+          <div class="form-group" style="margin-bottom: 16px;">
+            <label class="form-label">💰 收藏價格 (選填)</label>
+            <div style="display: flex; gap: 8px;">
+              <select id="form-local-currency" class="form-select" style="width: 100px; flex-shrink: 0; padding: 0 8px;">
+                <!-- Will be filled dynamically -->
+              </select>
+              <input type="number" id="form-local-price" class="form-input" placeholder="價格" min="0" style="flex-grow: 1;">
+            </div>
+          </div>
+
+          <div style="border-top: 1px dashed var(--border-light); margin: 16px 0; padding-top: 16px;">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="form-payment-method">💳 付款方式 (選填)</label>
+                <select id="form-payment-method" class="form-select">
+                  <!-- Will be filled dynamically -->
+                </select>
+              </div>
+              <div class="form-group" id="form-group-payment-tool">
+                <label class="form-label" for="form-payment-tool">🏦 付款工具 (選填)</label>
+                <select id="form-payment-tool" class="form-select">
+                  <!-- Will be filled dynamically -->
+                </select>
+              </div>
+            </div>
+
+            <div class="form-row" id="form-group-card-charge">
+              <div class="form-group" style="flex: 1;">
+                <label class="form-label">扣款幣別 (選填)</label>
+                <select id="form-charge-currency" class="form-select">
+                  <!-- Will be filled dynamically -->
+                </select>
+              </div>
+              <div class="form-group" style="flex: 1;">
+                <label class="form-label">扣款金額 (選填)</label>
+                <input type="number" id="form-card-charge" class="form-input" placeholder="金額" min="0">
+              </div>
+            </div>
+          </div>
+
+          <!-- ================= 共同：圖片上傳與標籤、備註 ================= -->
+          <!-- 圖片上傳 -->
+          <div class="form-group">
+            <label class="form-label">🖼️ 上傳照片 (可複選多張，支援立即預覽)</label>
+            <div class="file-upload-zone" id="file-upload-zone">
+              <input type="file" id="form-images-input" accept="image/*" multiple style="display: none;">
+              <div class="upload-zone-prompt">
+                <span class="upload-icon">📸</span>
+                <p class="upload-text">點擊此處或拖曳多張圖片上傳</p>
+                <span class="upload-subtext">圖片將安全地儲存於瀏覽器 LocalStorage</span>
+              </div>
+            </div>
+            <!-- 圖片預覽區 -->
+            <div class="image-preview-container" id="form-image-preview-container">
+              <!-- 這裡會由 JS 動態生成預覽圖以及刪除按鈕 -->
+            </div>
+          </div>
+
+          <!-- 標籤設定 -->
+          <div class="form-group">
+            <label class="form-label" for="form-tags-input">🏷️ 標籤 (多個標籤請用空格分隔，例如：#限定款 #極稀有)</label>
+            <input type="text" id="form-tags-input" class="form-input" placeholder="例如：#限定款 #開箱 #超療癒">
+          </div>
+
+          <!-- 備註與說明 -->
+          <div class="form-group">
+            <label class="form-label" for="form-note">📝 備註與小卡</label>
+            <textarea id="form-note" class="form-textarea" rows="4" placeholder="在這裡記錄這個收藏或旅程帶給您的溫暖故事..."></textarea>
+          </div>
+
+          <div class="drawer-divider"></div>
+
+          <!-- 表單操作按鈕 -->
+          <div class="form-actions-row">
+            <button type="button" id="btn-save-form" class="form-btn submit">
+              <span>💾 儲存並保存</span>
+            </button>
+            <button type="button" id="btn-cancel-form" class="form-btn cancel">
+              <span>取消</span>
+            </button>
+          </div>
+
+          <!-- 刪除收藏按鈕 (編輯模式下顯示) -->
+          <div id="form-delete-container" style="display: none; margin-top: 12px;">
+            <button type="button" id="btn-form-delete-item" class="form-btn delete" style="width: 100%; justify-content: center; background-color: rgba(255, 59, 48, 0.06); color: #ff3b30; border: 1px solid rgba(255, 59, 48, 0.15); transition: var(--transition-smooth); cursor: pointer;" onmouseover="this.style.backgroundColor='rgba(255, 59, 48, 0.12)'" onmouseout="this.style.backgroundColor='rgba(255, 59, 48, 0.06)'">
+              <span>🗑️ 刪除此收藏</span>
+            </button>
+          </div>
+        </form>
+
+        <!-- 系列新增/編輯表單 -->
+        <form id="series-form" class="collection-form" onsubmit="return false;" style="display: none;">
+          <input type="hidden" id="form-series-id" value="">
+
+          <!-- 分類選擇 -->
+          <div class="form-group">
+            <label class="form-label" for="form-series-category">📁 選擇分類</label>
+            <select id="form-series-category" class="form-select" required>
+              <option value="娃娃">🧸 娃娃</option>
+              <option value="周邊">🎁 周邊</option>
+              <option value="旅遊">✈️ 旅遊</option>
+            </select>
+          </div>
+
+          <!-- 系列名稱 -->
+          <div class="form-group">
+            <label class="form-label" for="form-series-name">🏷️ 系列名稱</label>
+            <input type="text" id="form-series-name" class="form-input" placeholder="例如：兔子" required>
+          </div>
+
+          <div class="drawer-divider"></div>
+
+          <!-- 表單操作按鈕 -->
+          <div class="form-actions-row">
+            <button type="button" id="btn-save-series" class="form-btn submit">
+              <span>💾 儲存並保存</span>
+            </button>
+            <button type="button" id="btn-cancel-series" class="form-btn cancel">
+              <span>取消</span>
+            </button>
+          </div>
+        </form>
+
+        <!-- 旅程新增/編輯表單 -->
+        <form id="trip-form" class="collection-form" style="display: none;" onsubmit="return false;">
+          <input type="hidden" id="form-trip-id" value="">
+          
+          <div class="form-group">
+            <label class="form-label" for="form-trip-name">✈️ 旅程名稱 <span style="color: var(--text-danger);">*</span></label>
+            <input type="text" id="form-trip-name" class="form-input" placeholder="例如：東京自由行" required>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="form-trip-start-date">📅 開始日期 <span style="color: var(--text-danger);">*</span></label>
+              <input type="date" id="form-trip-start-date" class="form-input" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="form-trip-end-date">📅 結束日期 <span style="color: var(--text-danger);">*</span></label>
+              <input type="date" id="form-trip-end-date" class="form-input" required>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="form-trip-country-select">🗺️ 國家 <span style="color: var(--text-danger);">*</span></label>
+            <select id="form-trip-country-select" class="form-select" required>
+              <!-- 動態填入國家列表 -->
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="form-trip-cities-input">🏙️ 城市 (多個請用空格或逗號分隔)</label>
+            <input type="text" id="form-trip-cities-input" class="form-input" placeholder="例如：東京 大阪 福岡">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="form-trip-accommodation">🏨 住宿</label>
+            <input type="text" id="form-trip-accommodation" class="form-input" placeholder="選填，例如：品川王子大飯店">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="form-trip-companions">👥 同行人</label>
+            <input type="text" id="form-trip-companions" class="form-input" placeholder="選填，例如：朋友、家人">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="form-trip-note">📝 備註</label>
+            <textarea id="form-trip-note" class="form-textarea" rows="3" placeholder="選填，記錄本次行程的重點或心情..."></textarea>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">🖼️ 封面照片 (選填，支援拖曳上傳與預覽)</label>
+            <div class="file-upload-zone" id="trip-cover-upload-zone">
+              <input type="file" id="form-trip-cover-input" accept="image/*" style="display: none;">
+              <div class="upload-zone-prompt">
+                <span class="upload-icon">📸</span>
+                <p class="upload-text">點擊上傳或拖曳單張封面照片</p>
+              </div>
+            </div>
+            <div class="image-preview-container" id="form-trip-cover-preview-container">
+              <!-- 動態生成封面預覽 -->
+            </div>
+          </div>
+
+          <div class="drawer-divider"></div>
+
+          <div class="form-actions-row">
+            <button type="button" id="btn-save-trip-form" class="form-btn submit">
+              <span>💾 儲存旅程</span>
+            </button>
+            <button type="button" id="btn-cancel-trip-form" class="form-btn cancel">
+              <span>取消</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- 詳情抽屜背景遮罩 -->
+    <div class="drawer-backdrop" id="drawer-backdrop"></div>
+
+  </div>
+
+  <!-- 圖片放大全螢幕 Lightbox 燈箱 (行動端 & 桌面端點擊放大) -->
+  <div id="image-lightbox" class="lightbox" style="display: none;">
+    <span class="lightbox-close">&times;</span>
+    <button id="lightbox-prev" class="lightbox-arrow prev" aria-label="上一張">&lsaquo;</button>
+    <div class="lightbox-content-container">
+      <img id="lightbox-img" src="" alt="放大圖片">
+      <div id="lightbox-dots" class="lightbox-dots"></div>
+    </div>
+    <button id="lightbox-next" class="lightbox-arrow next" aria-label="下一張">&rsaquo;</button>
+  </div>
+
+</body>
+</html>

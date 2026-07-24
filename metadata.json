@@ -1,0 +1,8 @@
+{
+  "name": "717收藏品（Collection Book）",
+  "description": "一個精美、簡約、現代的收藏品書頁，採用卡片式設計與大量留白，適合長時間瀏覽個人收藏。",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
