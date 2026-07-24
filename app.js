@@ -1454,7 +1454,16 @@ function renderTripPage(tripId) {
     const hasPrice = displayPrice !== '';
     const displayDate = item.purchaseDate || '無';
     const dateRowLabel = item.status === 'collected' ? `購入: ${displayDate}` : statusLabels[item.status] || '未收藏';
-    const emoji = getItemEmoji(item);
+
+    const memberList = Array.isArray(item.members) && item.members.length
+      ? item.members
+      : item.member
+        ? [item.member]
+        : [];
+
+const cardMemberText = memberList.length ? memberList.join('、') : '';
+
+const emoji = getItemEmoji(item);
 
     let mediaHTML = `<span class="card-media-emoji">${emoji}</span>`;
     if (item.images && item.images.length > 0) {
@@ -1471,6 +1480,9 @@ function renderTripPage(tripId) {
           ${displayedTags.map(tag => formatTagToChip(tag)).join('')}
           ${hasMoreTags ? `<span class="card-tag-item more" style="background-color: var(--border-light); color: var(--text-muted);">+${moreTagsCount}</span>` : ''}
         </div>
+
+      ${cardMemberText ? `<div class="card-item-member">👤 ${cardMemberText}</div>` : ''}
+
         <h3 class="card-item-name">${item.name}</h3>
         <div class="card-item-meta-row">
           ${hasPrice ? `<span class="card-item-price">${displayPrice}</span>` : '<span></span>'}
@@ -3931,6 +3943,16 @@ if (isTravelMode) {
     const hasPrice = displayPrice !== '';
     const displayDate = item.purchaseDate || '無';
     const dateRowLabel = item.status === 'collected' ? `購入: ${displayDate}` : statusLabels[item.status] || '未收藏';
+    const memberList = Array.isArray(item.members) && item.members.length
+      ? item.members
+      : item.member
+        ? [item.member]
+        : [];
+    
+    const cardMemberText = memberList.length
+      ? memberList.join('、')
+      : '';
+
     const emoji = getItemEmoji(item);
 
     // 檢查卡片封面：若有自訂上傳相片則使用第一張，否則使用預設 Emoji 漸層
@@ -3949,6 +3971,8 @@ if (isTravelMode) {
           ${displayedTags.map(tag => formatTagToChip(tag)).join('')}
           ${hasMoreTags ? `<span class="card-tag-item more" style="background-color: var(--border-light); color: var(--text-muted);">+${moreTagsCount}</span>` : ''}
         </div>
+        ${cardMemberText ? `<div class="card-item-member">👤 ${cardMemberText}</div>` : ''}
+
         <h3 class="card-item-name">${item.name}</h3>
         <div class="card-item-meta-row">
           ${hasPrice ? `<span class="card-item-price">${displayPrice}</span>` : '<span></span>'}
