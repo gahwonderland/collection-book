@@ -2540,3 +2540,11 @@ select.filter-action-btn {
     width: 100%;
   }
 }
+
+.footer-version {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  color: #999;
+  text-align: center;
+}

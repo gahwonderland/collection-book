@@ -11,6 +11,11 @@
  * 5. 實現完整的藏品新增、編輯、刪除、多圖拖曳上傳與預覽、備份 JSON 匯入/匯出、出廠重設。
  */
 
+// ===== App 資訊 =====
+const APP_NAME = "Collection Book";
+const APP_VERSION = "2.9.0";
+const APP_BUILD = "2026-08-15";
+
 // 1. 側邊欄與首頁系列定義對照表 - 動態獲取 (用於將側邊欄 data-series 對應到 Item.series 欄位)
 function getDynamicSeriesMap() {
   const seriesList = CollectionStorage.getAllSeries();
@@ -575,6 +580,13 @@ function updatePaymentFieldsVisibility() {
 document.addEventListener('DOMContentLoaded', () => {
   // A. 初始化 LocalStorage 資料 (如果沒有的話會自動載入 data.js)
   CollectionStorage.init();
+
+    // 顯示版本資訊
+  const footerVersion = document.getElementById('footer-version');
+  if (footerVersion) {
+    footerVersion.textContent =
+      `Version ${APP_VERSION} · Build ${APP_BUILD}`;
+  }
 
   // B. 動態填充幣別選單
   populateCurrencySelects();
@@ -5643,3 +5655,4 @@ function saveSettingPaymentTool() {
   populatePaymentSelects();
   showToast('💾 付款工具已儲存！');
 }
+
