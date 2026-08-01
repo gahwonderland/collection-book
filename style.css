@@ -1975,10 +1975,44 @@ select.filter-action-btn {
   display: flex;
   gap: 8px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .mini-form-row.wrap {
   flex-wrap: wrap;
+}
+
+/* 周邊團體與成員（手機版） */
+#settings-card-groups .mini-form-row {
+  flex-wrap: wrap;
+}
+
+#settings-card-groups .mini-select {
+  flex: 1 1 140px;
+  min-width: 120px;
+}
+
+#settings-card-groups .mini-input {
+  flex: 2 1 180px;
+  min-width: 150px;
+}
+
+#settings-card-groups .mini-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+#btn-setting-add-member {
+  grid-column: 1 / -1;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.settings-card .mini-btn {
+    flex-shrink: 0;
 }
 
 .mini-select {
@@ -2454,5 +2488,55 @@ select.filter-action-btn {
 @media (max-width: 360px) {
   .member-checkbox-list {
     grid-template-columns: 1fr;
+  }
+}
+
+/* 手機版：系列管理小表單避免按鈕被擠出畫面 */
+@media (max-width: 600px) {
+  #setting-series-category {
+    flex: 1 1 110px;
+    min-width: 0;
+  }
+
+  #setting-series-name {
+    flex: 1 1 160px;
+    min-width: 0;
+  }
+
+  #setting-series-emoji {
+    flex: 0 0 64px;
+    width: 64px;
+    min-width: 64px;
+  }
+
+  #btn-setting-save-series,
+  #btn-setting-cancel-series {
+    flex: 1 1 90px;
+    min-width: 90px;
+  }
+
+  #setting-series-category,
+  #setting-series-name,
+  #setting-series-emoji,
+  #btn-setting-save-series,
+  #btn-setting-cancel-series {
+    box-sizing: border-box;
+  }
+
+  #setting-series-category,
+  #setting-series-name,
+  #setting-series-emoji {
+    max-width: 100%;
+  }
+
+  #setting-series-list {
+    width: 100%;
+  }
+
+  #setting-series-id + .mini-form-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    width: 100%;
   }
 }

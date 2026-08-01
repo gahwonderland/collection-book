@@ -437,28 +437,119 @@ function getAnyStatusValueString(items) {
 function populateCurrencySelects() {
   const localSelect = document.getElementById('form-local-currency');
   const chargeSelect = document.getElementById('form-charge-currency');
-  
-  const currencies = CollectionStorage.getAllCurrencies().filter(c => c.enabled !== false);
-  const optionsHtml = currencies.map(c => 
-    `<option value="${c.code}">${c.name}</option>`
-  ).join('');
-  
-  const emptyAndOptionsHtml = '<option value="">-- 幣別 --</option>' + optionsHtml;
-  
-  if (localSelect) localSelect.innerHTML = emptyAndOptionsHtml;
-  if (chargeSelect) chargeSelect.innerHTML = emptyAndOptionsHtml;
+  const filterSelect = document.getElementById('filter-currency-select');
+
+  const currencies = CollectionStorage
+    .getAllCurrencies()
+    .filter(currency => currency.enabled !== false);
+
+  const optionsHtml = currencies.map(currency => {
+    const code = String(currency.code || '').trim();
+    const name = String(currency.name || '').trim();
+
+    const displayName = name.toUpperCase().startsWith(code.toUpperCase())
+      ? name
+      : `${code}（${name}）`;
+
+    return `<option value="${code}">${displayName}</option>`;
+  }).join('');
+
+  const emptyAndOptionsHtml =
+    '<option value="">-- 幣別 --</option>' + optionsHtml;
+
+  if (localSelect) {
+    const currentValue = localSelect.value;
+    localSelect.innerHTML = emptyAndOptionsHtml;
+
+    if (
+      currentValue &&
+      currencies.some(currency => currency.code === currentValue)
+    ) {
+      localSelect.value = currentValue;
+    }
+  }
+
+  if (chargeSelect) {
+    const currentValue = chargeSelect.value;
+    chargeSelect.innerHTML = emptyAndOptionsHtml;
+
+    if (
+      currentValue &&
+      currencies.some(currency => currency.code === currentValue)
+    ) {
+      chargeSelect.value = currentValue;
+    }
+  }
+
+  if (filterSelect) {
+    const currentValue = filterSelect.value;
+
+    filterSelect.innerHTML =
+      '<option value="all">🪙 幣別：全部</option>' +
+      optionsHtml;
+
+    if (
+      currentValue &&
+      (
+        currentValue === 'all' ||
+        currencies.some(currency => currency.code === currentValue)
+      )
+    ) {
+      filterSelect.value = currentValue;
+    } else {
+      filterSelect.value = 'all';
+    }
+  }
 }
 
 function populatePaymentSelects() {
   const methodSelect = document.getElementById('form-payment-method');
   const toolSelect = document.getElementById('form-payment-tool');
-  if (!methodSelect || !toolSelect) return;
+  const filterMethodSelect = document.getElementById('filter-payment-method-select');
 
   const methods = CollectionStorage.getAllPaymentMethods();
   const tools = CollectionStorage.getAllPaymentTools();
 
-  methodSelect.innerHTML = '<option value="">-- 未選擇付款方式 --</option>' + methods.map(m => `<option value="${m}">${m}</option>`).join('');
-  toolSelect.innerHTML = '<option value="">-- 未選擇付款工具 --</option>' + tools.map(t => `<option value="${t}">${t}</option>`).join('');
+  // 新增 / 編輯收藏
+  if (methodSelect) {
+    const currentValue = methodSelect.value;
+
+    methodSelect.innerHTML =
+      '<option value="">-- 未選擇付款方式 --</option>' +
+      methods.map(method => `<option value="${method}">${method}</option>`).join('');
+
+    if (methods.includes(currentValue)) {
+      methodSelect.value = currentValue;
+    }
+  }
+
+  // 付款工具
+  if (toolSelect) {
+    const currentValue = toolSelect.value;
+
+    toolSelect.innerHTML =
+      '<option value="">-- 未選擇付款工具 --</option>' +
+      tools.map(tool => `<option value="${tool}">${tool}</option>`).join('');
+
+    if (tools.includes(currentValue)) {
+      toolSelect.value = currentValue;
+    }
+  }
+
+  // ⭐ 篩選付款方式
+  if (filterMethodSelect) {
+    const currentValue = filterMethodSelect.value;
+
+    filterMethodSelect.innerHTML =
+      '<option value="all">💳 付款：全部</option>' +
+      methods.map(method => `<option value="${method}">${method}</option>`).join('');
+
+    if (currentValue === 'all' || methods.includes(currentValue)) {
+      filterMethodSelect.value = currentValue;
+    } else {
+      filterMethodSelect.value = 'all';
+    }
+  }
 }
 
 /**
@@ -3286,6 +3377,19 @@ itemData.member = selectedMembers.join('、');
     showToast(`🎉 收藏「${itemData.name}」新增成功！`);
   }
 
+  // ⭐ 重新同步標籤管理（依目前所有收藏）
+  const usedTags = [
+    ...new Set(
+      CollectionStorage.getAll()
+        .flatMap(item => item.tags || [])
+        .filter(Boolean)
+    )
+  ].sort();
+
+  CollectionStorage.saveTags(usedTags);
+  renderSettingTagsList();
+  populateFilterSelects();
+
   // 當成功修改狀態時，顯示狀態 Toast 提示
   const statusMap = {
     collected: '✔ 已收藏',
@@ -4813,25 +4917,36 @@ async function saveSettingTag() {
 }
 
 async function deleteSettingTag(tag) {
-  const isConfirmed = await showConfirmDialog(`⚠️ 是否確定刪除標籤「${tag}」？\n\n此操作將會從所有已套用的收藏品中移除此標籤！此動作無法復原。`, '確定刪除', '取消', true);
+  const isConfirmed = await showConfirmDialog(
+    `⚠️ 是否確定刪除標籤「${tag}」？\n\n此操作將會從所有已套用的收藏品中移除此標籤！此動作無法復原。`,
+    '確定刪除',
+    '取消',
+    true
+  );
+
   if (isConfirmed) {
     const tags = CollectionStorage.getAllTags();
     CollectionStorage.saveTags(tags.filter(t => t !== tag));
-    
-    // 從收藏品中移出
+
+    // 從收藏品中移除
     const allItems = CollectionStorage.getAll();
     allItems.forEach(item => {
       if (item.tags) {
         item.tags = item.tags.filter(t => t !== tag);
       }
     });
+
     CollectionStorage.save(allItems);
+
     showToast(`🗑️ 標籤「${tag}」已成功刪除！`);
-    
+
     renderSettingTagsList();
-    
+    populateFilterSelects();
+    updateDashboardStats();
+
     // 如果當前正在看此標籤，跳回 Dashboard
     const cleanTag = tag.replace('#', '');
+
     if (currentSeries === 'tag-' + cleanTag) {
       switchView('dashboard');
     } else if (currentView === 'series') {
@@ -4958,11 +5073,17 @@ function renderSettingCurrenciesList() {
   if (!container) return;
   container.innerHTML = currencies.map(c => {
     const isEnabled = c.enabled !== false;
+    const currencyName = String(c.name || '').trim();
+    const code = String(c.code || '').trim();
+
+    const displayName = currencyName.toUpperCase().startsWith(code.toUpperCase())
+      ? currencyName
+      : `${code}（${currencyName}）`;
     return `
       <div class="settings-list-item" data-code="${c.code}">
         <div class="settings-item-info">
           <span class="settings-item-emoji">🪙</span>
-          <span class="settings-item-name">${c.name} (${c.symbol})</span>
+          <span class="settings-item-name">${displayName} (${c.symbol})</span>
           <span class="settings-item-badge ${isEnabled ? '' : 'disabled'}">${isEnabled ? '啟用中' : '已停用'}</span>
         </div>
         <div class="settings-item-actions">
@@ -5522,5 +5643,3 @@ function saveSettingPaymentTool() {
   populatePaymentSelects();
   showToast('💾 付款工具已儲存！');
 }
-
-
