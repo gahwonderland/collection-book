@@ -13,8 +13,8 @@
 
 // ===== App 資訊 =====
 const APP_NAME = "Collection Book";
-const APP_VERSION = "2.9.0";
-const APP_BUILD = "2026-08-15";
+const APP_VERSION = "3.1.0";
+const APP_BUILD = "2026-08-06";
 
 // 1. 側邊欄與首頁系列定義對照表 - 動態獲取 (用於將側邊欄 data-series 對應到 Item.series 欄位)
 function getDynamicSeriesMap() {
@@ -326,10 +326,37 @@ let currentFilter = 'all';
 // 全域狀態：當前表單正在上傳的照片 Base64 陣列
 let formUploadedImages = [];
 
+// 對應 formUploadedImages 的原始 ImageDB ID
+let formUploadedImageIds = [];
+
+// 編輯時等待刪除的 ImageDB ID
+let pendingDeleteImageIds = [];
+
+
 // 全域狀態：詳情抽屜中的照片輪播狀態
 let detailDrawerImages = [];
 let currentDetailImageIndex = 0;
 let lightboxImageIndex = 0;
+
+async function resolveImageSource(imageValue) {
+  if (!imageValue) return null;
+
+  // 舊資料：本身就是 Base64，直接使用
+  if (
+    typeof imageValue === 'string' &&
+    imageValue.startsWith('data:image/')
+  ) {
+    return imageValue;
+  }
+
+  // 新資料：從 IndexedDB 讀取
+  try {
+    return await ImageDB.getImage(imageValue);
+  } catch (error) {
+    console.error('讀取收藏圖片失敗：', error);
+    return null;
+  }
+}
 
 function getCurrencySymbol(code) {
   const currencies = CollectionStorage.getAllCurrencies();
@@ -1297,7 +1324,7 @@ async function deleteTripAction(tripId) {
 /**
  * 渲染特定旅程詳細頁面 (旅遊模組)
  */
-function renderTripPage(tripId) {
+async function renderTripPage(tripId) {
   const trip = CollectionStorage.getAllTrips().find(t => t.id === tripId);
   if (!trip) {
     switchView('dashboard');
@@ -1539,7 +1566,7 @@ function renderTripPage(tripId) {
     cancelled: '已取消'
   };
 
-  filtered.forEach(item => {
+  for (const item of filtered) {
     const cardEl = document.createElement('div');
     cardEl.className = 'collection-card';
     cardEl.id = `item-card-${item.id}`;
@@ -1569,9 +1596,16 @@ const cardMemberText = memberList.length ? memberList.join('、') : '';
 const emoji = getItemEmoji(item);
 
     let mediaHTML = `<span class="card-media-emoji">${emoji}</span>`;
+
     if (item.images && item.images.length > 0) {
-      mediaHTML = `<img src="${item.images[0]}" alt="${item.name}" style="width: 100%; height: 100%; object-fit: cover;">`;
+
+    const imageSrc = await resolveImageSource(item.images[0]);
+
+    if (imageSrc) {
+        mediaHTML = `<img src="${imageSrc}" alt="${item.name}" style="width: 100%; height: 100%; object-fit: cover;">`;
     }
+
+}
 
     cardEl.innerHTML = `
       <div class="card-media" style="background: ${cardBgColor};">
@@ -1600,7 +1634,7 @@ const emoji = getItemEmoji(item);
     });
 
     cardsContainer.appendChild(cardEl);
-  });
+  }
 }
 
 /**
@@ -1709,12 +1743,23 @@ async function saveSeriesForm() {
       return;
     }
     
-    CollectionStorage.addSeries({
-      id: 'series-' + Date.now(),
-      category: category,
-      name: name,
-      emoji: emoji
-    });
+const sameCategorySeries = allSeries.filter(
+  series => series.category === category
+);
+
+const nextOrder = sameCategorySeries.length > 0
+  ? Math.max(
+      ...sameCategorySeries.map(series => Number(series.order) || 0)
+    ) + 1
+  : 0;
+
+CollectionStorage.addSeries({
+  id: 'series-' + Date.now(),
+  category: category,
+  name: name,
+  emoji: emoji,
+  order: nextOrder
+});
     showToast(`🎉 系列「${name}」新增成功！`);
   }
   
@@ -2252,6 +2297,17 @@ function setupEventListeners() {
         if (item) {
           const isConfirmed = await showConfirmDialog(`⚠️ 是否確定刪除收藏「${item.name}」？此動作將無法復原。`, '確定刪除', '取消', true);
           if (isConfirmed) {
+          if (Array.isArray(item.images)) {
+            for (const imageId of item.images) {
+              if (
+                typeof imageId === 'string' &&
+                imageId.startsWith('img-')
+              ) {
+                await ImageDB.deleteImage(imageId);
+              }
+            }
+          }
+
             CollectionStorage.delete(item.id);
             closeDrawer();
             refreshAppSeriesData();
@@ -2279,6 +2335,17 @@ function setupEventListeners() {
         if (item) {
           const isConfirmed = await showConfirmDialog(`⚠️ 是否確定刪除收藏「${item.name}」？此動作將無法復原。`, '確定刪除', '取消', true);
           if (isConfirmed) {
+          if (Array.isArray(item.images)) {
+            for (const imageId of item.images) {
+              if (
+                typeof imageId === 'string' &&
+                imageId.startsWith('img-')
+              ) {
+                await ImageDB.deleteImage(imageId);
+              }
+            }
+          }
+
             CollectionStorage.delete(itemId);
             closeFormDrawer();
             refreshAppSeriesData();
@@ -2611,9 +2678,36 @@ function setupEventListeners() {
       const isConfirmed = await showConfirmDialog('是否要匯出當前所有收藏、國家、旅程與設定資料？', '確認匯出', '取消');
       if (!isConfirmed) return;
 
+// 匯出前：將 ImageDB 圖片還原成 Base64，確保備份完整
+const exportItems = [];
+
+for (const item of CollectionStorage.getAll()) {
+
+  const exportItem = {
+    ...item
+  };
+
+  if (Array.isArray(item.images) && item.images.length > 0) {
+
+    exportItem.images = [];
+
+    for (const imageValue of item.images) {
+
+      const imageSrc = await resolveImageSource(imageValue);
+
+      exportItem.images.push(imageSrc || imageValue);
+
+    }
+
+  }
+
+  exportItems.push(exportItem);
+
+}
+
       const backupData = {
         version: "1.2",
-        items: CollectionStorage.getAll(),
+        items: exportItems,
         series: CollectionStorage.getAllSeries(),
         tags: CollectionStorage.getAllTags(),
         sources: CollectionStorage.getAllSources(),
@@ -2712,7 +2806,34 @@ function sanitizeImportedItems(items) {
           if (isConfirmed) {
             if (imported && imported.items && Array.isArray(imported.items)) {
               // 完整備份包格式
-              CollectionStorage.save(sanitizeImportedItems(imported.items));
+              const sanitizedItems = sanitizeImportedItems(imported.items);
+const restoredItems = [];
+
+for (const item of sanitizedItems) {
+  const restoredItem = {
+    ...item,
+    images: []
+  };
+
+  for (const imageValue of item.images || []) {
+    // 備份內若是 Base64，就重新存進 IndexedDB
+    if (
+      typeof imageValue === 'string' &&
+      imageValue.startsWith('data:image/')
+    ) {
+      const imageId = await ImageDB.saveImage(imageValue);
+      restoredItem.images.push(imageId);
+      continue;
+    }
+
+    // 若本來就是 img-...，先保留，兼容其他備份格式
+    restoredItem.images.push(imageValue);
+  }
+
+  restoredItems.push(restoredItem);
+}
+
+CollectionStorage.save(restoredItems);
               if (imported.series && Array.isArray(imported.series)) CollectionStorage.saveSeries(imported.series);
               if (imported.tags && Array.isArray(imported.tags)) CollectionStorage.saveTags(imported.tags);
               if (imported.sources && Array.isArray(imported.sources)) CollectionStorage.saveSources(imported.sources);
@@ -2723,9 +2844,34 @@ function sanitizeImportedItems(items) {
               if (imported.paymentTools && Array.isArray(imported.paymentTools)) CollectionStorage.savePaymentTools(imported.paymentTools);
               if (imported.groups && Array.isArray(imported.groups)) CollectionStorage.saveGroups(imported.groups);
             } else if (Array.isArray(imported)) {
-              // 僅收藏品陣列格式
-              CollectionStorage.save(sanitizeImportedItems(imported));
-            } else {
+  // 僅收藏品陣列格式
+  const sanitizedItems = sanitizeImportedItems(imported);
+  const restoredItems = [];
+
+  for (const item of sanitizedItems) {
+    const restoredItem = {
+      ...item,
+      images: []
+    };
+
+    for (const imageValue of item.images || []) {
+      if (
+        typeof imageValue === 'string' &&
+        imageValue.startsWith('data:image/')
+      ) {
+        const imageId = await ImageDB.saveImage(imageValue);
+        restoredItem.images.push(imageId);
+        continue;
+      }
+
+      restoredItem.images.push(imageValue);
+    }
+
+    restoredItems.push(restoredItem);
+  }
+
+  CollectionStorage.save(restoredItems);
+} else {
               alert('❌ 匯入失敗：備份檔案結構不正確。');
               return;
             }
@@ -2767,6 +2913,8 @@ function sanitizeImportedItems(items) {
     btnReset.addEventListener('click', async () => {
       const isConfirmed = await showConfirmDialog('⚠️ 您確定要將所有資料重置為出廠預設值嗎？\n\n這將完全清除您自己新增、編輯的所有收藏、設定、國家與旅程！此操作無法復原！', '確定重置', '取消', true);
       if (isConfirmed) {
+        await ImageDB.clearAllImages();
+
         localStorage.removeItem('collection_items');
         localStorage.removeItem('collection_series');
         localStorage.removeItem('collection_tags');
@@ -2777,9 +2925,11 @@ function sanitizeImportedItems(items) {
         localStorage.removeItem('collection_groups');
         localStorage.removeItem('collection_payment_methods');
         localStorage.removeItem('collection_payment_tools');
+
         CollectionStorage.init();
         showToast('🔄 系統已重設為出廠預設值！');
         initApp();
+
         if (currentView === 'settings') {
           renderSettingSeriesList();
           renderSettingGroupsList();
@@ -2950,9 +3100,10 @@ function closeMobileSidebar() {
  * 開啟表單抽屜 (Form Drawer)
  * @param {object|null} item - 當傳入項目時代表「編輯」，否則代表「新增」
  */
-function openFormDrawer(item = null) {
+async function openFormDrawer(item = null) {
   const formDrawer = document.getElementById('item-form-drawer');
   const backdrop = document.getElementById('drawer-backdrop');
+  pendingDeleteImageIds = [];
   if (!formDrawer || !backdrop) return;
 
   // 確保顯示藏品表單，隱藏系列及旅程表單
@@ -2967,9 +3118,12 @@ function openFormDrawer(item = null) {
 
   // 重設表單
   const form = document.getElementById('collection-form');
-  form.reset();
-  formUploadedImages = [];
-  document.getElementById('form-image-preview-container').innerHTML = '';
+form.reset();
+
+formUploadedImages = [];
+formUploadedImageIds = [];
+
+document.getElementById('form-image-preview-container').innerHTML = '';
 
   const categorySelect = document.getElementById('form-category');
 
@@ -2984,9 +3138,26 @@ function openFormDrawer(item = null) {
 
     // 載入自訂圖片
     if (item.images && item.images.length > 0) {
-      formUploadedImages = [...item.images];
-      renderFormImagePreviews();
+
+formUploadedImages = [];
+formUploadedImageIds = [];
+
+for (const imageValue of item.images) {
+
+    const imageSrc = await resolveImageSource(imageValue);
+
+    if (imageSrc) {
+
+        formUploadedImages.push(imageSrc);
+
+        formUploadedImageIds.push(imageValue);
+
     }
+
+}
+
+renderFormImagePreviews();
+}
 
     // 載入標籤
     document.getElementById('form-tags-input').value = (item.tags || []).join(' ');
@@ -3223,7 +3394,17 @@ function renderFormImagePreviews() {
     previewItem.querySelector('.preview-item-delete').addEventListener('click', (e) => {
       e.stopPropagation();
       const idx = parseInt(e.target.getAttribute('data-index'));
+      const originalId = formUploadedImageIds[idx];
+      if (
+        originalId &&
+        typeof originalId === 'string' &&
+        originalId.startsWith('img-')
+      ) {
+        pendingDeleteImageIds.push(originalId);
+      }
       formUploadedImages.splice(idx, 1);
+      formUploadedImageIds.splice(idx, 1);
+
       renderFormImagePreviews();
     });
 
@@ -3243,12 +3424,33 @@ async function saveForm() {
     return;
   }
 
-  let itemData = {
-    category: category,
-    images: [...formUploadedImages],
-    note: document.getElementById('form-note').value.trim(),
-    createdDate: new Date().toISOString()
-  };
+const imageIds = [];
+
+for (let i = 0; i < formUploadedImages.length; i++) {
+  const imageData = formUploadedImages[i];
+  const originalId = formUploadedImageIds[i];
+
+  // 原本就是 IndexedDB 圖片，直接沿用
+  if (
+    originalId &&
+    typeof originalId === 'string' &&
+    originalId.startsWith('img-')
+  ) {
+    imageIds.push(originalId);
+    continue;
+  }
+
+  // 新圖片才存入 IndexedDB
+  const imageId = await ImageDB.saveImage(imageData);
+  imageIds.push(imageId);
+}
+
+let itemData = {
+  category: category,
+  images: imageIds,
+  note: document.getElementById('form-note').value.trim(),
+  createdDate: new Date().toISOString()
+};
 
   // 解析並統一格式化標籤
   const tagsInput = document.getElementById('form-tags-input').value;
@@ -3379,6 +3581,12 @@ itemData.member = selectedMembers.join('、');
       itemData.createdDate = oldItem.createdDate; // 繼承原本建立日期
     }
     CollectionStorage.update(itemId, itemData);
+    for (const imageId of pendingDeleteImageIds) {
+      await ImageDB.deleteImage(imageId);
+   }
+
+    pendingDeleteImageIds = [];
+
     console.log('藏品更新成功：', itemId);
     showToast(`✏️ 收藏「${itemData.name}」修改成功！`);
   } else {
@@ -3553,7 +3761,7 @@ const sortedTrips = Array.from(tripsSet)
  * 根據系列名稱 (Key) 渲染系列頁面卡片
  * @param {string} seriesKey - 系列鍵值
  */
-function renderSeriesPage(seriesKey) {
+async function renderSeriesPage(seriesKey) {
   let seriesInfo = null;
   let itemsList = [];
   const allItems = CollectionStorage.getAll();
@@ -4041,7 +4249,7 @@ if (isTravelMode) {
     cancelled: '已取消'
   };
 
-  filteredItems.forEach(item => {
+  for (const item of filteredItems) {
     const cardEl = document.createElement('div');
     cardEl.className = 'collection-card';
     cardEl.id = `item-card-${item.id}`;
@@ -4073,9 +4281,16 @@ if (isTravelMode) {
 
     // 檢查卡片封面：若有自訂上傳相片則使用第一張，否則使用預設 Emoji 漸層
     let mediaHTML = `<span class="card-media-emoji">${emoji}</span>`;
+
     if (item.images && item.images.length > 0) {
-      mediaHTML = `<img src="${item.images[0]}" alt="${item.name}" style="width: 100%; height: 100%; object-fit: cover;">`;
-    }
+
+        const imageSrc = await resolveImageSource(item.images[0]);
+
+        if (imageSrc) {
+            mediaHTML = `<img src="${imageSrc}" alt="${item.name}" style="width: 100%; height: 100%; object-fit: cover;">`;
+        }
+
+   }
 
     cardEl.innerHTML = `
       <div class="card-media" style="background: ${cardBgColor};">
@@ -4104,13 +4319,13 @@ if (isTravelMode) {
     });
 
     cardsContainer.appendChild(cardEl);
-  });
+  }
 }
 
 /**
  * 開啟右側 Drawer 抽屜顯示藏品細節 (讀取動態資料欄位)
  */
-function openDrawer(item) {
+async function openDrawer(item) {
   const drawer = document.getElementById('item-detail-drawer');
   const backdrop = document.getElementById('drawer-backdrop');
 
@@ -4277,9 +4492,18 @@ function openDrawer(item) {
   mediaPlaceholder.setAttribute('data-item-id', item.id);
   mediaPlaceholder.setAttribute('data-item-series', item.series || '');
 
-  detailDrawerImages = item.images || [];
-  currentDetailImageIndex = 0;
-  renderDetailDrawerImage();
+detailDrawerImages = [];
+
+for (const imageValue of item.images || []) {
+  const imageSrc = await resolveImageSource(imageValue);
+
+  if (imageSrc) {
+    detailDrawerImages.push(imageSrc);
+  }
+}
+
+currentDetailImageIndex = 0;
+renderDetailDrawerImage();
 
   // 5. 顯示抽屜與遮罩
   drawer.classList.add('open');
@@ -4589,20 +4813,109 @@ async function deleteSettingMember(groupName, memberName) {
 function renderSettingSeriesList() {
   const seriesList = CollectionStorage.getAllSeries();
   const container = document.getElementById('setting-series-list');
+
   if (!container) return;
-  container.innerHTML = seriesList.map(s => `
-    <div class="settings-list-item" data-id="${s.id}">
-      <div class="settings-item-info">
-        <span class="settings-item-emoji">${s.emoji || '📦'}</span>
-        <span class="settings-item-name">${s.name}</span>
-        <span class="settings-item-category">${s.category}</span>
+
+  const categories = [
+    { name: '娃娃', icon: '🧸' },
+    { name: '周邊', icon: '🎁' }
+  ];
+
+  container.innerHTML = categories.map(categoryInfo => {
+    const categorySeries = seriesList.filter(
+      series => series.category === categoryInfo.name
+    );
+
+    if (categorySeries.length === 0) return '';
+
+    return `
+      <div class="series-sort-section">
+        <div class="series-sort-header">
+          <span>${categoryInfo.icon}</span>
+          <strong>${categoryInfo.name}</strong>
+        </div>
+
+        <div
+          class="series-sort-list"
+          data-category="${categoryInfo.name}"
+        >
+          ${categorySeries.map(series => `
+            <div
+              class="settings-list-item"
+              data-id="${series.id}"
+              data-series-id="${series.id}"
+            >
+              <div class="settings-item-info">
+                <span
+                  class="settings-drag-handle"
+                  title="拖曳排序"
+                >☰</span>
+
+                <span class="settings-item-emoji">
+                  ${series.emoji || '📦'}
+                </span>
+
+                <span class="settings-item-name">
+                  ${series.name}
+                </span>
+
+                <span class="settings-item-category">
+                  ${series.category}
+                </span>
+              </div>
+
+              <div class="settings-item-actions">
+                <button
+                  class="settings-action-btn edit-btn"
+                  title="編輯"
+                >🖊️</button>
+
+                <button
+                  class="settings-action-btn delete-btn"
+                  title="刪除"
+                >🗑️</button>
+              </div>
+            </div>
+          `).join('')}
+        </div>
       </div>
-      <div class="settings-item-actions">
-        <button class="settings-action-btn edit-btn" title="編輯">🖊️</button>
-        <button class="settings-action-btn delete-btn" title="刪除">🗑️</button>
-      </div>
-    </div>
-  `).join('');
+    `;
+  }).join('');
+
+  if (typeof Sortable === 'undefined') return;
+
+  container.querySelectorAll('.series-sort-list').forEach(listElement => {
+    const category = listElement.dataset.category;
+
+    Sortable.create(listElement, {
+      animation: 150,
+      handle: '.settings-drag-handle',
+      draggable: '.settings-list-item',
+
+      // 各分類獨立，不能拖進另一區
+      group: {
+        name: `series-${category}`,
+        pull: false,
+        put: false
+      },
+
+      onEnd() {
+        const orderedIds = Array.from(
+          listElement.querySelectorAll('.settings-list-item')
+        ).map(row => row.dataset.seriesId);
+
+        CollectionStorage.updateSeriesOrder(
+          category,
+          orderedIds
+        );
+
+        refreshAppSeriesData();
+        renderSettingSeriesList();
+
+        showToast(`☰「${category}」系列順序已更新！`);
+      }
+    });
+  });
 }
 
 function startEditSettingSeries(id) {
@@ -4721,17 +5034,46 @@ function renderSettingCountriesList() {
   const container = document.getElementById('setting-countries-list');
   if (!container) return;
   container.innerHTML = countries.map(c => `
-    <div class="settings-list-item" data-id="${c.id}">
+    <div class="settings-list-item"
+         data-id="${c.id}"
+         data-country-id="${c.id}">
       <div class="settings-item-info">
+        <span class="settings-drag-handle" title="拖曳排序">☰</span>
+
         <span class="settings-item-emoji">${c.emoji || '🗺️'}</span>
+
         <span class="settings-item-name">${c.name}</span>
+
       </div>
+
       <div class="settings-item-actions">
         <button class="settings-action-btn edit-btn" title="編輯">🖊️</button>
         <button class="settings-action-btn delete-btn" title="刪除">🗑️</button>
       </div>
     </div>
   `).join('');
+
+  // 啟用國家拖曳排序
+if (typeof Sortable !== 'undefined') {
+  Sortable.create(container, {
+    animation: 150,
+    handle: '.settings-drag-handle',
+    draggable: '.settings-list-item',
+
+    onEnd() {
+      const orderedIds = Array.from(
+        container.querySelectorAll('.settings-list-item')
+      ).map(row => row.dataset.countryId);
+
+      CollectionStorage.updateCountryOrder(orderedIds);
+
+      refreshAppSeriesData();
+      renderSettingCountriesList();
+
+      showToast('☰ 國家順序已更新！');
+    }
+  });
+}
 }
 
 function startEditSettingCountry(id) {
@@ -5401,25 +5743,72 @@ function renderSettingTripsList() {
 
   const allItems = CollectionStorage.getAll();
 
-  container.innerHTML = trips.map(t => {
-    const country = countries.find(c => c.id === t.countryId);
-    const countryName = country ? `${country.emoji || '🗺️'} ${country.name}` : '未指定國家';
-    return `
-      <div class="settings-list-item" data-trip-id="${t.id}">
-        <div class="settings-item-info">
-          <span class="settings-item-emoji">✈️</span>
-          <div style="display: flex; flex-direction: column; gap: 2px;">
-            <span class="settings-item-name" style="font-weight: 600; font-size: var(--fs-sm);">${t.name}</span>
-            <span class="settings-item-subtext" style="font-size: 11px; color: var(--text-muted);">${countryName} | ${t.startDate} ~ ${t.endDate}</span>
-          </div>
-        </div>
-        <div class="settings-item-actions">
-          <button class="settings-action-btn edit-trip-btn" title="編輯旅程">🖊️</button>
-          <button class="settings-action-btn delete-trip-btn" title="刪除旅程" style="color: var(--text-danger);">🗑️</button>
-        </div>
+container.innerHTML = countries.map(country => {
+  const countryTrips = trips.filter(
+    trip => trip.countryId === country.id
+  );
+
+  if (countryTrips.length === 0) return '';
+
+  return `
+    <div class="trip-sort-section">
+      <div class="trip-sort-header">
+        <span>${country.emoji || '🗺️'}</span>
+        <strong>${country.name}</strong>
       </div>
-    `;
-  }).join('');
+
+      <div
+        class="trip-sort-list"
+        data-country-id="${country.id}"
+      >
+        ${countryTrips.map(t => `
+          <div
+            class="settings-list-item"
+            data-trip-id="${t.id}"
+          >
+            <div class="settings-item-info">
+              <span
+                class="settings-drag-handle"
+                title="拖曳排序"
+              >☰</span>
+
+              <span class="settings-item-emoji">✈️</span>
+
+              <div style="display: flex; flex-direction: column; gap: 2px;">
+                <span
+                  class="settings-item-name"
+                  style="font-weight: 600; font-size: var(--fs-sm);"
+                >
+                  ${t.name}
+                </span>
+
+                <span
+                  class="settings-item-subtext"
+                  style="font-size: 11px; color: var(--text-muted);"
+                >
+                  ${t.startDate} ~ ${t.endDate}
+                </span>
+              </div>
+            </div>
+
+            <div class="settings-item-actions">
+              <button
+                class="settings-action-btn edit-trip-btn"
+                title="編輯旅程"
+              >🖊️</button>
+
+              <button
+                class="settings-action-btn delete-trip-btn"
+                title="刪除旅程"
+                style="color: var(--text-danger);"
+              >🗑️</button>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}).join('');
 
   // 綁定編輯與刪除事件
   container.querySelectorAll('.edit-trip-btn').forEach(btn => {
@@ -5429,6 +5818,39 @@ function renderSettingTripsList() {
       openTripFormDrawer(tripId);
     });
   });
+
+// 啟用各國旅程拖曳排序
+if (typeof Sortable !== 'undefined') {
+
+  document.querySelectorAll('.trip-sort-list').forEach(list => {
+
+    Sortable.create(list, {
+      animation: 150,
+      handle: '.settings-drag-handle',
+      draggable: '.settings-list-item',
+
+      onEnd() {
+
+        const countryId = list.dataset.countryId;
+
+        const orderedIds = Array.from(
+          list.querySelectorAll('.settings-list-item')
+        ).map(item => item.dataset.tripId);
+
+        CollectionStorage.updateTripOrder(
+          countryId,
+          orderedIds
+        );
+
+        renderSettingTripsList();
+
+        showToast('☰ 旅程順序已更新！');
+      }
+    });
+
+  });
+
+}
 
   container.querySelectorAll('.delete-trip-btn').forEach(btn => {
     btn.addEventListener('click', async (e) => {

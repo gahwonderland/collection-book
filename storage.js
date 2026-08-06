@@ -220,16 +220,47 @@ const CollectionStorage = {
    * 取得所有系列
    * @returns {Array} 系列物件陣列
    */
-  getAllSeries() {
-    this.init();
-    try {
-      const dataStr = localStorage.getItem(SERIES_STORAGE_KEY);
-      return JSON.parse(dataStr) || [];
-    } catch (e) {
-      console.error('解析 LocalStorage 系列資料發生錯誤', e);
-      return DEFAULT_SERIES_DATA;
-    }
-  },
+getAllSeries() {
+  this.init();
+
+  try {
+    const dataStr = localStorage.getItem(SERIES_STORAGE_KEY);
+    const seriesList = JSON.parse(dataStr) || [];
+
+    return seriesList
+      .map((series, index) => ({
+        ...series,
+        order: Number.isFinite(Number(series.order))
+          ? Number(series.order)
+          : index
+      }))
+      .sort((a, b) => {
+  const categoryOrder = {
+    '娃娃': 0,
+    '周邊': 1,
+    '旅遊': 2
+  };
+
+  const categoryDifference =
+    (categoryOrder[a.category] ?? 99) -
+    (categoryOrder[b.category] ?? 99);
+
+  if (categoryDifference !== 0) {
+    return categoryDifference;
+  }
+
+  return a.order - b.order;
+});
+
+  } catch (e) {
+    console.error('解析 LocalStorage 系列資料發生錯誤', e);
+
+    return DEFAULT_SERIES_DATA.map((series, index) => ({
+      ...series,
+      order: index
+    }));
+  }
+},
 
   /**
    * 儲存系列資料
@@ -238,6 +269,35 @@ const CollectionStorage = {
   saveSeries(seriesList) {
     localStorage.setItem(SERIES_STORAGE_KEY, JSON.stringify(seriesList));
   },
+  
+  /**
+ * 更新同一分類內的系列順序
+ * @param {string} category 分類名稱，例如「娃娃」或「周邊」
+ * @param {Array<string>} orderedIds 拖曳後的系列 ID 順序
+ */
+updateSeriesOrder(category, orderedIds) {
+  const allSeries = this.getAllSeries();
+
+  const orderMap = new Map(
+    orderedIds.map((id, index) => [id, index])
+  );
+
+  const updatedSeries = allSeries.map(series => {
+    if (
+      series.category === category &&
+      orderMap.has(series.id)
+    ) {
+      return {
+        ...series,
+        order: orderMap.get(series.id)
+      };
+    }
+
+    return series;
+  });
+
+  this.saveSeries(updatedSeries);
+},
 
   /**
    * 根據 ID 查詢特定系列項目
@@ -495,15 +555,27 @@ const CollectionStorage = {
    * 取得所有國家
    */
   getAllCountries() {
-    this.init();
-    try {
-      const dataStr = localStorage.getItem('collection_countries');
-      return JSON.parse(dataStr) || [];
-    } catch (e) {
-      console.error('讀取國家失敗', e);
-      return [];
-    }
-  },
+  this.init();
+
+  try {
+    const dataStr = localStorage.getItem('collection_countries');
+
+    const countries = JSON.parse(dataStr) || [];
+
+    return countries
+      .map((country, index) => ({
+        ...country,
+        order: Number.isFinite(Number(country.order))
+          ? Number(country.order)
+          : index
+      }))
+      .sort((a, b) => a.order - b.order);
+
+  } catch (e) {
+    console.error('讀取國家失敗', e);
+    return [];
+  }
+},
 
   /**
    * 儲存所有國家
@@ -513,6 +585,31 @@ const CollectionStorage = {
   },
 
   /**
+ * 更新國家排序
+ * @param {Array<string>} orderedIds 拖曳後的國家 ID 順序
+ */
+updateCountryOrder(orderedIds) {
+  const countries = this.getAllCountries();
+
+  const orderMap = new Map(
+    orderedIds.map((id, index) => [id, index])
+  );
+
+  const updatedCountries = countries.map(country => {
+    if (orderMap.has(country.id)) {
+      return {
+        ...country,
+        order: orderMap.get(country.id)
+      };
+    }
+
+    return country;
+  });
+
+  this.saveCountries(updatedCountries);
+},
+
+  /**
    * 新增一筆國家
    */
   addCountry(country) {
@@ -520,7 +617,14 @@ const CollectionStorage = {
     if (!country.id) {
       country.id = 'country-' + Date.now();
     }
-    countries.push(country);
+    const nextOrder =
+  countries.length > 0
+    ? Math.max(...countries.map(c => Number(c.order) || 0)) + 1
+    : 0;
+
+country.order = nextOrder;
+
+countries.push(country);
     this.saveCountries(countries);
     return true;
   },
@@ -554,16 +658,28 @@ const CollectionStorage = {
   /**
    * 取得所有旅程
    */
-  getAllTrips() {
-    this.init();
-    try {
-      const dataStr = localStorage.getItem('collection_trips');
-      return JSON.parse(dataStr) || [];
-    } catch (e) {
-      console.error('讀取旅程失敗', e);
-      return [];
-    }
-  },
+getAllTrips() {
+  this.init();
+
+  try {
+    const dataStr = localStorage.getItem('collection_trips');
+
+    const trips = JSON.parse(dataStr) || [];
+
+    return trips
+      .map((trip, index) => ({
+        ...trip,
+        order: Number.isFinite(Number(trip.order))
+          ? Number(trip.order)
+          : index
+      }))
+      .sort((a, b) => a.order - b.order);
+
+  } catch (e) {
+    console.error('讀取旅程失敗', e);
+    return [];
+  }
+},
 
   /**
    * 儲存所有旅程
@@ -573,17 +689,56 @@ const CollectionStorage = {
   },
 
   /**
+ * 更新同一國家內的旅程順序
+ * @param {string} countryId 國家 ID
+ * @param {Array<string>} orderedIds 拖曳後的旅程 ID 順序
+ */
+updateTripOrder(countryId, orderedIds) {
+  const trips = this.getAllTrips();
+
+  const orderMap = new Map(
+    orderedIds.map((id, index) => [id, index])
+  );
+
+  const updatedTrips = trips.map(trip => {
+    if (
+      trip.countryId === countryId &&
+      orderMap.has(trip.id)
+    ) {
+      return {
+        ...trip,
+        order: orderMap.get(trip.id)
+      };
+    }
+
+    return trip;
+  });
+
+  this.saveTrips(updatedTrips);
+},
+
+  /**
    * 新增一筆旅程
    */
-  addTrip(trip) {
-    const trips = this.getAllTrips();
-    if (!trip.id) {
-      trip.id = 'trip-' + Date.now();
-    }
-    trips.push(trip);
-    this.saveTrips(trips);
-    return true;
-  },
+addTrip(trip) {
+  const trips = this.getAllTrips();
+
+  if (!trip.id) {
+    trip.id = 'trip-' + Date.now();
+  }
+
+  const nextOrder =
+    trips.length > 0
+      ? Math.max(...trips.map(t => Number(t.order) || 0)) + 1
+      : 0;
+
+  trip.order = nextOrder;
+
+  trips.push(trip);
+
+  this.saveTrips(trips);
+  return true;
+},
 
   /**
    * 更新特定旅程

@@ -2548,3 +2548,15 @@ select.filter-action-btn {
   color: #999;
   text-align: center;
 }
+
+.settings-drag-handle{
+    cursor: grab;
+    font-size:18px;
+    color:#888;
+    margin-right:10px;
+    user-select:none;
+}
+
+.settings-drag-handle:active{
+    cursor:grabbing;
+}
