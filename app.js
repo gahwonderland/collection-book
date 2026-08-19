@@ -14,7 +14,7 @@
 // ===== App 資訊 =====
 const APP_NAME = "Collection Book";
 const APP_VERSION = "3.1.0";
-const APP_BUILD = "2026-08-06";
+const APP_BUILD = "2026-08-19";
 
 // 1. 側邊欄與首頁系列定義對照表 - 動態獲取 (用於將側邊欄 data-series 對應到 Item.series 欄位)
 function getDynamicSeriesMap() {
@@ -933,9 +933,14 @@ function updateMemberSelect(preferredValue = null) {
 
   const series = seriesSelect.value;
 
-  const merchSeries = CollectionStorage
+  const selectedSeries = CollectionStorage
     .getAllSeries()
-    .find(item => item.category === '周邊' && item.name === series);
+    .find(item => item.name === series);
+
+  const merchSeries =
+    selectedSeries && selectedSeries.category === '周邊'
+      ? selectedSeries
+      : null;
 
   // 不是周邊系列時，隱藏成員欄位
   if (!merchSeries) {
